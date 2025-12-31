@@ -1,25 +1,26 @@
 /* script.js */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getFirestore, collection, addDoc, getDoc, getDocs, doc, updateDoc, query, where, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDoc, getDocs, doc, updateDoc, deleteDoc, writeBatch, query, where, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
 // --- PASTE YOUR FIREBASE CONFIG HERE ---
 const firebaseConfig = {
-  apiKey: "AIzaSyDcOx7keARxAM-W3aLoUzO1gDdfwsmp-PM",
-  authDomain: "attendance-app-33e78.firebaseapp.com",
-  projectId: "attendance-app-33e78",
-  storageBucket: "attendance-app-33e78.firebasestorage.app",
-  messagingSenderId: "947436572816",
-  appId: "1:947436572816:web:d98f3b04ed7b32f4b14815"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "123",
+  appId: "1:123:web:abc"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-export { db, collection, addDoc, getDoc, getDocs, doc, updateDoc, query, where, orderBy, Timestamp };
+// Exporting necessary functions
+export { db, collection, addDoc, getDoc, getDocs, doc, updateDoc, deleteDoc, writeBatch, query, where, orderBy, Timestamp };
 
 // --- UTILITY: HAVERSINE FORMULA ---
 export function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-    const R = 6371; 
+    const R = 6371; // Earth radius (km)
     const dLat = deg2rad(lat2 - lat1);
     const dLon = deg2rad(lon2 - lon1);
     const a =
@@ -27,8 +28,7 @@ export function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
         Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c; 
-    return d * 1000; 
+    return R * c * 1000; // Return in meters
 }
 
 function deg2rad(deg) { return deg * (Math.PI / 180); }
