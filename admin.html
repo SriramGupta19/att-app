@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin - Set Venue</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY&callback=initMap" async defer></script>
+    <script type="module" src="script.js"></script>
+</head>
+<body>
+    <h1>Create Attendance Event</h1>
+    
+    <div id="map" style="height: 400px; width: 100%;"></div>
+    
+    <label>Radius: <input type="range" id="radius" min="20" max="200" value="50"> meters</label>
+    <button onclick="generateEvent()">Generate QR Code</button>
+
+    <div id="qr-container"></div>
+
+    <script>
+        let map, marker, circle;
+        
+        function initMap() {
+            let startLoc = { lat: 40.7128, lng: -74.0060 }; // Default
+            map = new google.maps.Map(document.getElementById("map"), { zoom: 18, center: startLoc });
+            
+            marker = new google.maps.Marker({ position: startLoc, map: map, draggable: true });
+            circle = new google.maps.Circle({ map: map, center: startLoc, radius: 50, fillColor: '#AA0000' });
+
+            // Update circle when marker moves
+            marker.addListener("drag", () => circle.setCenter(marker.getPosition()));
+        }
+
+        function generateEvent() {
+            // Get coordinates from the marker
+            const lat = marker.getPosition().lat();
+            const lng = marker.getPosition().lng();
+            const radius = parseInt(document.getElementById("radius").value);
+            
+            // Save to Firebase (Pseudo-code)
+            // db.collection("events").add({ lat: lat, lng: lng, radius: radius })
+            // .then(docRef => createQR(docRef.id));
+            
+            alert(`Event created at ${lat}, ${lng} with radius ${radius}m`);
+        }
+    </script>
+</body>
+</html>
