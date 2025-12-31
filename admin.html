@@ -6,75 +6,130 @@
     <title>Admin Dashboard</title>
     
     <link rel="stylesheet" href="style.css">
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    
+    <style>
+        /* Admin Login Specific Styles */
+        .login-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+        .google-btn { background-color: #4285F4; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 4px; cursor: pointer; margin-top: 20px; }
+        .hidden { display: none !important; }
+        
+        /* Event Type Selector */
+        select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; background: white; }
+    </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Admin Dashboard</h1>
-    
-    <div class="tabs">
-        <div id="tab-create" class="tab active" onclick="switchTab('create')">Create Event</div>
-        <div id="tab-history" class="tab" onclick="switchTab('history'); loadHistory()">Event History</div>
+
+    <div id="view-login" class="login-wrapper">
+        <h1>Event Attendance Tracker - Admin Portal</h1>
+        <p>Restricted Access</p>
+        <button id="loginBtn" class="google-btn">Sign in with Google</button>
+        <p id="auth-error" style="color:red; margin-top:15px; font-weight:bold;"></p>
     </div>
 
-    <div id="view-create">
-        <p style="color:#666; margin-bottom:10px;">1. Enter Name &rarr; 2. Set Location &rarr; 3. Create</p>
-        
-        <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101)">
-        
-        <div id="map"></div>
-        
-        <div class="flex-row">
-            <label>Geofence Radius: <strong id="radiusVal">50</strong> m</label>
+    <div id="view-dashboard" class="hidden">
+        <div class="flex-row" style="border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:20px;">
+            <h1 style="margin:0;">Admin Dashboard</h1>
+            <button class="secondary" id="logoutBtn" style="width:auto; padding:5px 15px; font-size:0.8em;">Logout</button>
         </div>
-        <input type="range" id="radiusSlider" min="10" max="500" value="50">
         
-        <button id="createBtn">Create Event & Generate QR</button>
-
-        <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px; background:#f9f9f9; padding:20px; border:2px dashed #ddd; border-radius:10px;">
-            <h3 style="margin-top:0; color:#27ae60;">✅ Event Created!</h3>
-            
-            <img id="qr-image" src="" alt="Generating QR..." style="width: 200px; height: 200px; border: 1px solid #ccc; padding: 5px; background: white;">
-            
-            <p style="margin-bottom:5px; margin-top:15px; font-weight:bold;">Scan or Share:</p>
-            <a id="share-link" href="#" target="_blank" style="word-break: break-all; color:#3498db; text-decoration:underline;">Link</a>
+        <div class="tabs">
+            <div id="tab-create" class="tab active" onclick="switchTab('create')">Create Event</div>
+            <div id="tab-history" class="tab" onclick="switchTab('history'); loadHistory()">Event History</div>
         </div>
-    </div>
 
-    <div id="view-history" class="hidden">
-        <h3>Past Events</h3>
-        <div id="events-list"><p>Loading...</p></div>
-    </div>
+        <div id="view-create">
+            <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101)">
+            
+            <label style="display:block; margin-top:10px; color:#666; font-weight:bold;">Event Type:</label>
+            <select id="eventType">
+                <option value="internal">Internal (NITC Email Only)</option>
+                <option value="external">External (Open to All)</option>
+            </select>
 
-    <div id="view-details" class="hidden">
-        <div class="flex-row">
-            <button class="secondary" style="width: auto;" onclick="switchTab('history')">← Back</button>
-            <div style="display:flex; align-items:center;">
-                <span style="font-size:0.9em; margin-right:5px;">Accepting Responses:</span>
-                <label class="switch">
-                    <input type="checkbox" id="toggle-active">
-                    <span class="slider"></span>
-                </label>
+            <div id="map"></div>
+            
+            <div class="flex-row">
+                <label>Geofence Radius: <strong id="radiusVal">50</strong> m</label>
+            </div>
+            <input type="range" id="radiusSlider" min="10" max="500" value="50">
+            
+            <button id="createBtn">Create Event & Generate QR</button>
+
+            <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px; background:#f9f9f9; padding:20px; border:2px dashed #ddd; border-radius:10px;">
+                <h3 style="margin-top:0; color:#27ae60;">✅ Event Created!</h3>
+                <img id="qr-image" src="" alt="Generating QR..." style="width: 200px; height: 200px; border: 1px solid #ccc; padding: 5px; background: white;">
+                <p style="margin-bottom:5px; margin-top:15px; font-weight:bold;">Scan or Share:</p>
+                <a id="share-link" href="#" target="_blank" style="word-break: break-all; color:#3498db; text-decoration:underline;">Link</a>
             </div>
         </div>
-        <h2 id="detail-title">Event Name</h2>
-        <p>Total Attendees: <strong id="count-val">0</strong></p>
-        <button onclick="downloadCSV()">Download CSV</button>
-        <ul id="attendee-list"><li>Loading...</li></ul>
-        <button class="danger" onclick="deleteCurrentEvent()">Delete Event</button>
+
+        <div id="view-history" class="hidden">
+            <h3>Past Events</h3>
+            <div id="events-list"><p>Loading...</p></div>
+        </div>
+
+        <div id="view-details" class="hidden">
+            <div class="flex-row">
+                <button class="secondary" style="width: auto;" onclick="switchTab('history')">← Back</button>
+                <div style="display:flex; align-items:center;">
+                    <span style="font-size:0.9em; margin-right:5px;">Accepting Responses:</span>
+                    <label class="switch">
+                        <input type="checkbox" id="toggle-active">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            <h2 id="detail-title">Event Name</h2>
+            <p>Type: <strong id="detail-type">...</strong></p>
+            <p>Total Attendees: <strong id="count-val">0</strong></p>
+            <button onclick="downloadCSV()">Download CSV</button>
+            <ul id="attendee-list"><li>Loading...</li></ul>
+            <button class="danger" onclick="deleteCurrentEvent()">Delete Event</button>
+        </div>
     </div>
 </div>
 
 <script type="module">
-    import { db, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, writeBatch, Timestamp } from './script.js';
+    import { db, auth, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, writeBatch, Timestamp, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from './script.js';
+
+    // --- CONFIGURATION ---
+    const ALLOWED_ADMIN = "maddula_m241070ee@nitc.ac.in";
 
     let map, marker, circle;
 
+    // --- AUTHENTICATION ---
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            if (user.email === ALLOWED_ADMIN) {
+                document.getElementById('view-login').classList.add('hidden');
+                document.getElementById('view-dashboard').classList.remove('hidden');
+                initMap(); // Init map only after login
+            } else {
+                alert("Access Denied: You are not the administrator.");
+                signOut(auth);
+                document.getElementById('auth-error').innerText = "Access Denied: Unauthorized Email";
+            }
+        } else {
+            document.getElementById('view-login').classList.remove('hidden');
+            document.getElementById('view-dashboard').classList.add('hidden');
+        }
+    });
+
+    document.getElementById('loginBtn').addEventListener('click', () => {
+        signInWithPopup(auth, new GoogleAuthProvider()).catch(e => alert(e.message));
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        signOut(auth).then(() => window.location.reload());
+    });
+
     // --- MAP INITIALIZATION ---
     function initMap() {
+        if(map) return; // Prevent re-init
         let startLoc = [40.7128, -74.0060]; 
         map = L.map('map').setView(startLoc, 18);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
@@ -89,7 +144,6 @@
             });
         }
     }
-    initMap();
 
     // Slider UI Update
     document.getElementById('radiusSlider').addEventListener('input', (e) => {
@@ -99,8 +153,8 @@
 
     // --- MAIN CREATE FUNCTION ---
     document.getElementById('createBtn').addEventListener('click', async () => {
-        const nameInput = document.getElementById('eventName');
-        const name = nameInput.value;
+        const name = document.getElementById('eventName').value;
+        const type = document.getElementById('eventType').value; // Get Type
         const btn = document.getElementById('createBtn');
         const qrContainer = document.getElementById('qr-result');
         const qrImage = document.getElementById('qr-image');
@@ -112,9 +166,9 @@
         btn.disabled = true;
 
         try {
-            // 1. Save to Firebase
             const docRef = await addDoc(collection(db, "events"), {
                 name: name,
+                eventType: type, // Save Type
                 latitude: marker.getLatLng().lat,
                 longitude: marker.getLatLng().lng,
                 radius: parseInt(document.getElementById('radiusSlider').value),
@@ -122,32 +176,22 @@
                 createdAt: Timestamp.now()
             });
 
-            console.log("Created Event ID:", docRef.id);
-
-            // 2. Construct the Attendance URL
+            // Generate URL
             const baseUrl = window.location.href.replace('admin.html', 'index.html');
             const finalUrl = `${baseUrl}?id=${docRef.id}`;
-            console.log("Final URL:", finalUrl);
-
-            // 3. Generate QR (Using robust API method)
-            // This URL returns a PNG image of the QR code
             const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(finalUrl)}`;
             
-            // 4. Update UI
-            qrImage.src = qrApiUrl; // Set image source
+            qrImage.src = qrApiUrl;
             shareLink.href = finalUrl;
             shareLink.innerText = finalUrl;
-            
-            // Show the result container
             qrContainer.classList.remove('hidden');
             
-            // Reset Button
             btn.innerText = "Create Another Event";
             btn.disabled = false;
-            nameInput.value = ""; 
+            document.getElementById('eventName').value = ""; 
 
         } catch(e) {
-            console.error("Error creating event:", e);
+            console.error("Error", e);
             alert("Error: " + e.message);
             btn.innerText = "Create Event";
             btn.disabled = false;
@@ -183,10 +227,19 @@
 
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
+            // Determine Tag Color
+            const typeBadge = data.eventType === 'internal' 
+                ? '<span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-size:0.8em;">Internal</span>' 
+                : '<span style="background:#f3e8ff; color:#7e22ce; padding:2px 6px; border-radius:4px; font-size:0.8em;">External</span>';
+
             const div = document.createElement('div');
             div.className = 'event-card';
-            div.innerHTML = `<div><b>${data.name}</b><br><small>${data.createdAt.toDate().toLocaleDateString()}</small></div>
-                             <div class="status-badge ${data.isActive?'status-active':'status-closed'}">${data.isActive?'Live':'Closed'}</div>`;
+            div.innerHTML = `
+                <div>
+                    <b>${data.name}</b> ${typeBadge}<br>
+                    <small>${data.createdAt.toDate().toLocaleDateString()}</small>
+                </div>
+                <div class="status-badge ${data.isActive?'status-active':'status-closed'}">${data.isActive?'Live':'Closed'}</div>`;
             div.onclick = () => openDetails(docSnap.id, data);
             listDiv.appendChild(div);
         });
@@ -200,17 +253,16 @@
         currentEventId = id;
         switchTab('details');
         document.getElementById('detail-title').innerText = data.name;
+        document.getElementById('detail-type').innerText = data.eventType === 'internal' ? "Internal (NITC Only)" : "External (Open)";
         
-        // Setup Toggle
         const toggle = document.getElementById('toggle-active');
-        const newToggle = toggle.cloneNode(true); // Remove old listeners
+        const newToggle = toggle.cloneNode(true); 
         toggle.parentNode.replaceChild(newToggle, toggle);
         newToggle.checked = data.isActive;
         newToggle.addEventListener('change', async (e) => {
             await updateDoc(doc(db, "events", id), { isActive: e.target.checked });
         });
 
-        // Load Attendees
         const list = document.getElementById('attendee-list');
         list.innerHTML = "Loading...";
         const q = query(collection(db, "attendees"), where("eventId", "==", id));
@@ -225,7 +277,7 @@
             const att = d.data();
             currentAttendees.push(att);
             const li = document.createElement('li');
-            li.innerText = `${att.name} (${att.studentId}) - ${att.timestamp.toDate().toLocaleTimeString()}`;
+            li.innerText = `${att.name} (${att.studentId || 'Ext'}) - ${att.timestamp.toDate().toLocaleTimeString()}`;
             list.appendChild(li);
         });
     }
