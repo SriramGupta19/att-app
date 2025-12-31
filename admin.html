@@ -9,8 +9,6 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 </head>
 <body>
 
@@ -23,8 +21,12 @@
     </div>
 
     <div id="view-create">
+        <p style="color:#666; margin-bottom:10px;">1. Enter Name &rarr; 2. Set Location &rarr; 3. Create</p>
+        
         <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101)">
+        
         <div id="map"></div>
+        
         <div class="flex-row">
             <label>Geofence Radius: <strong id="radiusVal">50</strong> m</label>
         </div>
@@ -34,9 +36,11 @@
 
         <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px; background:#f9f9f9; padding:20px; border:2px dashed #ddd; border-radius:10px;">
             <h3 style="margin-top:0; color:#27ae60;">✅ Event Created!</h3>
-            <canvas id="qr-code" width="200" height="200"></canvas>
-            <p style="margin-bottom:5px;">Share this link:</p>
-            <a id="share-link" href="#" target="_blank" style="word-break: break-all; font-weight:bold; display:block; margin-top:10px;">Link</a>
+            
+            <img id="qr-image" src="" alt="Generating QR..." style="width: 200px; height: 200px; border: 1px solid #ccc; padding: 5px; background: white;">
+            
+            <p style="margin-bottom:5px; margin-top:15px; font-weight:bold;">Scan or Share:</p>
+            <a id="share-link" href="#" target="_blank" style="word-break: break-all; color:#3498db; text-decoration:underline;">Link</a>
         </div>
     </div>
 
@@ -69,7 +73,7 @@
 
     let map, marker, circle;
 
-    // --- MAP INIT ---
+    // --- MAP INITIALIZATION ---
     function initMap() {
         let startLoc = [40.7128, -74.0060]; 
         map = L.map('map').setView(startLoc, 18);
@@ -87,20 +91,22 @@
     }
     initMap();
 
-    // Radius Slider
+    // Slider UI Update
     document.getElementById('radiusSlider').addEventListener('input', (e) => {
         document.getElementById('radiusVal').innerText = e.target.value;
         circle.setRadius(e.target.value);
     });
 
-    // --- CREATE & QR LOGIC (FIXED) ---
+    // --- MAIN CREATE FUNCTION ---
     document.getElementById('createBtn').addEventListener('click', async () => {
         const nameInput = document.getElementById('eventName');
         const name = nameInput.value;
         const btn = document.getElementById('createBtn');
         const qrContainer = document.getElementById('qr-result');
+        const qrImage = document.getElementById('qr-image');
+        const shareLink = document.getElementById('share-link');
 
-        if(!name) return alert("Enter event name.");
+        if(!name) return alert("Please enter an event name.");
         
         btn.innerText = "Creating...";
         btn.disabled = true;
@@ -116,36 +122,32 @@
                 createdAt: Timestamp.now()
             });
 
-            console.log("Event Created ID:", docRef.id);
+            console.log("Created Event ID:", docRef.id);
 
-            // 2. Build URL
+            // 2. Construct the Attendance URL
             const baseUrl = window.location.href.replace('admin.html', 'index.html');
             const finalUrl = `${baseUrl}?id=${docRef.id}`;
-            console.log("Target URL:", finalUrl);
+            console.log("Final URL:", finalUrl);
 
-            // 3. SHOW CONTAINER FIRST (Critical for QR rendering)
-            qrContainer.classList.remove('hidden');
-            qrContainer.style.display = "block"; 
-
-            // 4. Generate QR on the canvas
-            const qr = new QRious({
-                element: document.getElementById('qr-code'),
-                value: finalUrl,
-                size: 200,
-                level: 'H' // High error correction
-            });
-
-            // 5. Update Link
-            const linkTag = document.getElementById('share-link');
-            linkTag.href = finalUrl;
-            linkTag.innerText = finalUrl;
+            // 3. Generate QR (Using robust API method)
+            // This URL returns a PNG image of the QR code
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(finalUrl)}`;
             
-            btn.innerText = "Create Another";
+            // 4. Update UI
+            qrImage.src = qrApiUrl; // Set image source
+            shareLink.href = finalUrl;
+            shareLink.innerText = finalUrl;
+            
+            // Show the result container
+            qrContainer.classList.remove('hidden');
+            
+            // Reset Button
+            btn.innerText = "Create Another Event";
             btn.disabled = false;
             nameInput.value = ""; 
 
         } catch(e) {
-            console.error("Error:", e);
+            console.error("Error creating event:", e);
             alert("Error: " + e.message);
             btn.innerText = "Create Event";
             btn.disabled = false;
@@ -169,7 +171,7 @@
         }
     }
 
-    // --- HISTORY LOAD ---
+    // --- HISTORY LOGIC ---
     window.loadHistory = async () => {
         const listDiv = document.getElementById('events-list');
         listDiv.innerHTML = "Loading...";
@@ -177,7 +179,7 @@
         const snapshot = await getDocs(q);
         
         listDiv.innerHTML = "";
-        if(snapshot.empty) listDiv.innerHTML = "No events.";
+        if(snapshot.empty) listDiv.innerHTML = "No events found.";
 
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
@@ -190,7 +192,7 @@
         });
     };
 
-    // --- DETAILS & DELETE ---
+    // --- DETAILS LOGIC ---
     let currentEventId = null;
     let currentAttendees = [];
 
@@ -199,9 +201,9 @@
         switchTab('details');
         document.getElementById('detail-title').innerText = data.name;
         
-        // Toggle
+        // Setup Toggle
         const toggle = document.getElementById('toggle-active');
-        const newToggle = toggle.cloneNode(true);
+        const newToggle = toggle.cloneNode(true); // Remove old listeners
         toggle.parentNode.replaceChild(newToggle, toggle);
         newToggle.checked = data.isActive;
         newToggle.addEventListener('change', async (e) => {
@@ -239,7 +241,7 @@
     };
 
     window.deleteCurrentEvent = async () => {
-        if(!currentEventId || !confirm("Delete this event?")) return;
+        if(!currentEventId || !confirm("Permanently delete this event?")) return;
         const batch = writeBatch(db);
         batch.delete(doc(db, "events", currentEventId));
         const snaps = await getDocs(query(collection(db, "attendees"), where("eventId", "==", currentEventId)));
