@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mark Attendance</title>
+    <script type="module" src="script.js"></script>
+</head>
+<body>
+    <h1>Class Attendance</h1>
+    <p id="status">Locating you...</p>
+
+    <div id="attendance-form" style="display:none;">
+        <input type="text" id="name" placeholder="Enter your name">
+        <button onclick="submitAttendance()">Submit</button>
+    </div>
+
+    <script>
+        // Use the Haversine formula logic discussed earlier
+        navigator.geolocation.getCurrentPosition((position) => {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+
+            // Fetch venue details from Firebase using the ID in the URL
+            // If distance < radius, show form:
+            document.getElementById("attendance-form").style.display = "block";
+            document.getElementById("status").innerText = "You are in the venue.";
+        });
+
+        function submitAttendance() {
+            const name = document.getElementById("name").value;
+            // save to Firebase...
+            alert("Attendance Marked!");
+        }
+    </script>
+</body>
+</html>
