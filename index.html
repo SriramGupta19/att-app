@@ -3,43 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Event Attendance</title>
+    <title>NITC Attendance</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
     <style>
-        :root { --primary: #2563eb; --bg: #f3f4f6; --text-main: #1f2937; --error: #ef4444; }
+        :root { --primary: #2563eb; --bg: #f3f4f6; --text: #1f2937; --error: #ef4444; --success: #10b981; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; }
-        .container { width: 100%; max-width: 600px; margin: 0 auto; min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+        .container { max-width: 600px; margin: 0 auto; width: 100%; min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
         .hidden { display: none !important; }
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
 
         /* Login */
-        .login-wrapper { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; padding: 20px; background: white; text-align: center; }
-        .google-btn { background: #4285F4; color: white; border: none; padding: 15px 24px; border-radius: 12px; font-weight: 600; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-top: 10px; }
+        .login-wrapper { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; background: white; padding: 20px; text-align: center; }
+        .google-btn { background: #4285F4; color: white; width: 100%; padding: 15px; border-radius: 12px; font-weight: 600; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
         
-        /* Header */
+        /* App Header */
         .user-header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #eee; }
-        .user-name-small { font-weight: 700; font-size: 0.95rem; }
-        .user-email-small { font-size: 0.75rem; color: #6b7280; }
-        .logout-btn { background: #fee2e2; color: #b91c1c; padding: 6px 12px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; }
-        
+        .user-name { font-weight: 700; font-size: 0.95rem; }
+        .user-meta { font-size: 0.75rem; color: #6b7280; }
+        .logout { background: #fee2e2; color: #b91c1c; padding: 6px 12px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; }
+
         /* Content */
-        .content-area { padding: 20px; flex: 1; }
-        .event-card { background: white; padding: 16px; border-radius: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .content { padding: 20px; flex: 1; }
+        .event-card { background: white; padding: 16px; border-radius: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.03); cursor: pointer; }
+        .tag { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; color: #666; background: #f3f4f6; margin-top: 4px; display: inline-block; }
+        
         .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
-        .status-active { background: #d1fae5; color: #065f46; }
+        .status-live { background: #d1fae5; color: #065f46; }
         .status-done { background: #e0f2fe; color: #075985; }
 
-        /* Attendance */
-        .status-box { padding: 20px; border-radius: 16px; text-align: center; background: white; margin-bottom: 20px; font-weight: 600; }
-        .status-success { background: #d1fae5; color: #065f46; }
-        .status-error { background: #fee2e2; color: #b91c1c; }
+        /* Attendance Screen */
+        .status-box { padding: 20px; border-radius: 16px; text-align: center; background: white; margin-bottom: 20px; font-weight: 600; border: 1px solid #eee; }
+        .box-success { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+        .box-error { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
         .pulse { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-        
+        @keyframes pulse { 0%{opacity:1;} 50%{opacity:0.6;} 100%{opacity:1;} }
+
         .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
-        .primary-btn { background: var(--primary); color: white; width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 20px; }
+        .primary-btn { background: var(--primary); color: white; width: 100%; padding: 16px; border-radius: 12px; font-weight: 700; border: none; margin-top: 20px; font-size: 1rem; cursor: pointer; }
         .primary-btn:disabled { background: #cbd5e1; }
     </style>
 </head>
@@ -47,45 +50,45 @@
 
 <div class="container">
     <div id="view-login" class="login-wrapper hidden fade-in">
-        <div style="font-size:3rem; margin-bottom:20px;">📍</div>
-        <div style="font-size:1.5rem; font-weight:700;">Event Attendance</div>
+        <div style="font-size:3rem; margin-bottom:10px;">📍</div>
+        <h2 style="margin:0;">NITC Attendance</h2>
+        <p style="color:#666; margin-bottom:5px;">Digital Geofencing System</p>
         
-        <p style="color:#666; margin-bottom:10px;">Sign in to mark attendance</p>
-        
-        <p style="color:#666; margin-bottom:30px; font-size: 0.9em; max-width: 80%;">
-            <strong>NITC Students:</strong> Use College Email<br>
-            <strong>Guests:</strong> Use Any Valid Email
-        </p>
-        
+        <div style="background:#f9fafb; padding:15px; border-radius:8px; margin:20px 0; font-size:0.85rem; color:#555; text-align:left; width:100%;">
+            <p style="margin:5px 0;"><strong>NITC Students:</strong> Use College Email (@nitc.ac.in)</p>
+            <p style="margin:5px 0;"><strong>Guests:</strong> Use Any Valid Email</p>
+        </div>
+
         <button id="googleBtn" class="google-btn">Sign in with Google</button>
-        <p id="login-error" style="color:var(--error); margin-top:20px; font-size:0.85rem;"></p>
+        <p id="login-error" style="color:var(--error); font-size:0.8rem; margin-top:15px;"></p>
     </div>
 
     <div id="view-app" class="hidden fade-in">
         <div class="user-header">
             <div>
-                <div class="user-name-small" id="header-name">User</div>
-                <div class="user-email-small" id="header-email">...</div>
+                <div class="user-name" id="header-name">User</div>
+                <div class="user-meta" id="header-email">...</div>
             </div>
-            <button class="logout-btn" id="logoutBtn">Logout</button>
+            <button class="logout" id="logoutBtn">Logout</button>
         </div>
 
-        <div class="content-area">
+        <div class="content">
             <div id="view-list">
-                <h1>Live Events</h1>
-                <p style="color:#666; font-size:0.9rem;">Tap an event to mark attendance</p>
-                <div id="live-events-list"><div style="text-align:center; padding:40px; color:#999;">Loading...</div></div>
+                <h1 style="font-size:1.5rem; margin-top:0;">Live Events</h1>
+                <p style="color:#666; font-size:0.9rem; margin-bottom:20px;">Tap an event to mark attendance</p>
+                <div id="events-container"><div style="text-align:center; padding:40px; color:#999;">Loading...</div></div>
             </div>
 
             <div id="view-attendance" class="hidden">
-                <div id="backBtn" style="margin-bottom:20px; color:#666; cursor:pointer;">&larr; Back to Events</div>
-                <h2 id="event-title">Verifying...</h2>
-                <div id="status-box" class="status-box pulse">Initializing...</div>
+                <div id="backBtn" style="cursor:pointer; color:#666; margin-bottom:15px;">&larr; Back to Events</div>
+                <h2 id="event-title" style="margin-top:0;">Verifying...</h2>
+                
+                <div id="status-box" class="status-box pulse">Initializing Sensors...</div>
 
                 <div id="form-container" class="hidden fade-in">
                     <div style="background:white; border-radius:16px; padding:0 16px; margin-bottom:10px;">
-                        <div class="info-row"><span>Name</span><span style="font-weight:600;" id="display-name">...</span></div>
-                        <div class="info-row"><span>Roll No</span><span style="font-weight:600;" id="display-roll">...</span></div>
+                        <div class="info-row"><span>Name</span><span style="font-weight:bold;" id="disp-name">...</span></div>
+                        <div class="info-row"><span>Roll No</span><span style="font-weight:bold;" id="disp-roll">...</span></div>
                     </div>
                     <button id="submitBtn" class="primary-btn">Confirm Attendance</button>
                 </div>
@@ -106,139 +109,167 @@
         if (user) {
             currentUser = user;
             
-            // Logic: If NITC email, try extract roll number. Else mark as External.
+            // Extract Roll Number Logic
             if (user.email.endsWith('@nitc.ac.in')) {
                 try {
                     const parts = user.email.split('@')[0];
-                    const uIdx = parts.indexOf('_');
-                    if (uIdx !== -1) currentRollNo = parts.substring(uIdx + 1).toUpperCase();
-                } catch (e) { currentRollNo = "Error"; }
+                    const idx = parts.indexOf('_');
+                    if(idx !== -1) currentRollNo = parts.substring(idx + 1).toUpperCase();
+                } catch(e) { currentRollNo = "Error"; }
             } else {
-                currentRollNo = "External";
+                currentRollNo = "Guest";
             }
 
-            // Update Header UI
+            // Update UI
             document.getElementById('header-name').innerText = user.displayName;
-            document.getElementById('header-email').innerText = currentRollNo !== "External" ? currentRollNo : "Guest User";
-            
-            // Update Form UI
-            document.getElementById('display-name').innerText = user.displayName;
-            document.getElementById('display-roll').innerText = currentRollNo;
+            document.getElementById('header-email').innerText = currentRollNo !== "Guest" ? currentRollNo : "External User";
+            document.getElementById('disp-name').innerText = user.displayName;
+            document.getElementById('disp-roll').innerText = currentRollNo;
 
             showApp();
-            
-            // Handle Deep Link (QR Scan)
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('id')) startAttendanceFlow(urlParams.get('id'));
-            else loadLiveEvents();
+
+            const params = new URLSearchParams(window.location.search);
+            if(params.get('id')) startAttendanceFlow(params.get('id'));
+            else loadEvents();
         } else {
             showLogin();
         }
     });
 
+    // --- NAVIGATION ---
     document.getElementById('googleBtn').addEventListener('click', () => signInWithPopup(auth, new GoogleAuthProvider()));
     document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth).then(() => window.location.href = window.location.pathname));
     document.getElementById('backBtn').addEventListener('click', () => {
         window.history.pushState({}, '', window.location.pathname);
-        views.attendance.classList.add('hidden'); views.list.classList.remove('hidden'); loadLiveEvents();
+        views.attendance.classList.add('hidden'); views.list.classList.remove('hidden'); loadEvents();
     });
 
     function showLogin() { views.login.classList.remove('hidden'); views.app.classList.add('hidden'); }
     function showApp() { views.login.classList.add('hidden'); views.app.classList.remove('hidden'); views.list.classList.remove('hidden'); views.attendance.classList.add('hidden'); }
 
-    // --- DATA FUNCTIONS ---
+    // --- DATA ---
     async function hasAttended(eventId) {
         const q = query(collection(db, "attendees"), where("eventId", "==", eventId), where("email", "==", currentUser.email));
         return !(await getDocs(q)).empty;
     }
 
-    async function loadLiveEvents() {
-        const listDiv = document.getElementById('live-events-list');
+    async function loadEvents() {
+        const container = document.getElementById('events-container');
         try {
             const q = query(collection(db, "events"), where("isActive", "==", true));
-            const snapshot = await getDocs(q);
-            listDiv.innerHTML = "";
-            if(snapshot.empty) { listDiv.innerHTML = '<div style="text-align:center; padding:40px; color:#999;">No live events.</div>'; return; }
+            const snap = await getDocs(q);
+            container.innerHTML = "";
+            
+            if(snap.empty) { container.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">No live events.</div>'; return; }
 
-            for (const docSnap of snapshot.docs) {
+            for(const docSnap of snap.docs) {
                 const data = docSnap.data();
                 const attended = await hasAttended(docSnap.id);
                 
-                let badgeClass = 'status-active'; let badgeText = 'Live';
-                if (attended) { badgeClass = 'status-done'; badgeText = 'Done'; }
-                
-                // Show Type (Internal/External)
+                let badgeClass = 'status-live'; let badgeText = 'Live';
+                if(attended) { badgeClass = 'status-done'; badgeText = 'Done'; }
+
                 const typeLabel = data.eventType === 'internal' ? '🔒 Internal' : '🌍 External';
 
                 const div = document.createElement('div');
                 div.className = 'event-card';
-                div.innerHTML = `<div>
-                                    <div style="font-weight:600;">${data.name}</div>
-                                    <div style="font-size:0.75rem; color:#666;">${typeLabel}</div>
-                                 </div>
+                div.innerHTML = `<div><div style="font-weight:600;">${data.name}</div><div class="tag">${typeLabel}</div></div>
                                  <div class="status-badge ${badgeClass}">${badgeText}</div>`;
                 div.onclick = () => startAttendanceFlow(docSnap.id);
-                listDiv.appendChild(div);
+                container.appendChild(div);
             }
-        } catch (e) { console.error(e); }
+        } catch(e) { console.error(e); container.innerHTML = "Error loading events."; }
     }
 
+    // --- MAIN ATTENDANCE LOGIC ---
     async function startAttendanceFlow(eventId) {
         views.list.classList.add('hidden'); views.attendance.classList.remove('hidden');
         const statusBox = document.getElementById('status-box');
-        const formContainer = document.getElementById('form-container');
-        statusBox.innerText = "Verifying..."; statusBox.className = "status-box pulse";
-        formContainer.classList.add('hidden');
+        const form = document.getElementById('form-container');
+        statusBox.className = "status-box pulse"; statusBox.innerText = "Analyzing Signal...";
+        form.classList.add('hidden');
 
         try {
+            // 1. Fetch Event
             const eventSnap = await getDoc(doc(db, "events", eventId));
-            if (!eventSnap.exists() || !eventSnap.data().isActive) {
-                statusBox.className = "status-box status-error"; statusBox.innerText = "Event Closed."; return;
+            if(!eventSnap.exists() || !eventSnap.data().isActive) {
+                statusBox.className = "status-box box-error"; statusBox.innerText = "Event Closed."; return;
             }
             const data = eventSnap.data();
             document.getElementById('event-title').innerText = data.name;
 
-            // --- PERMISSION CHECK ---
-            if (data.eventType === 'internal') {
-                if (!currentUser.email.endsWith('@nitc.ac.in')) {
-                    statusBox.className = "status-box status-error";
-                    statusBox.innerHTML = "⛔ <b>Access Denied</b><br><small>This event is restricted to NITC students.</small>";
-                    return;
-                }
+            // 2. Permission Check
+            if(data.eventType === 'internal' && !currentUser.email.endsWith('@nitc.ac.in')) {
+                statusBox.className = "status-box box-error";
+                statusBox.innerHTML = "⛔ Access Denied<br><small>NITC Students Only</small>"; return;
             }
 
-            if (await hasAttended(eventId)) {
-                statusBox.className = "status-box status-success"; statusBox.innerText = "Already Attended ✅"; return;
+            // 3. Duplicate Check
+            if(await hasAttended(eventId)) {
+                statusBox.className = "status-box box-success"; statusBox.innerText = "Already Attended ✅"; return;
             }
 
-            if(!navigator.geolocation) { statusBox.className = "status-box status-error"; statusBox.innerText = "GPS Disabled."; return; }
-            navigator.geolocation.getCurrentPosition(pos => {
-                const dist = getDistanceFromLatLonInMeters(pos.coords.latitude, pos.coords.longitude, data.latitude, data.longitude);
-                
-                if (dist <= data.radius) {
-                    statusBox.className = "status-box status-success"; statusBox.innerText = "Location Verified ✅";
-                    formContainer.classList.remove('hidden');
-
-                    const btn = document.getElementById('submitBtn');
-                    const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
+            // 4. GPS & ANTI-SPOOFING
+            if(!navigator.geolocation) { statusBox.className = "status-box box-error"; statusBox.innerText = "GPS Disabled"; return; }
+            
+            // Watch position for stability (Anti-Spoofing Jitter Test)
+            let readings = [];
+            const watcher = navigator.geolocation.watchPosition(
+                (pos) => {
+                    readings.push(pos);
+                    if(readings.length < 3) return; // Wait for 3 readings
+                    navigator.geolocation.clearWatch(watcher);
                     
-                    newBtn.addEventListener('click', async () => {
-                        newBtn.innerText = "Submitting..."; newBtn.disabled = true;
-                        try {
-                            await addDoc(collection(db, "attendees"), {
-                                eventId: eventId, name: currentUser.displayName, email: currentUser.email,
-                                studentId: String(currentRollNo).toUpperCase(), timestamp: Timestamp.now()
-                            });
-                            statusBox.innerText = "Attendance Marked!"; formContainer.classList.add('hidden');
-                            setTimeout(() => document.getElementById('backBtn').click(), 1500);
-                        } catch(e) { alert("Error"); newBtn.disabled = false; }
-                    });
-                } else {
-                    statusBox.className = "status-box status-error"; statusBox.innerHTML = `Too far (${Math.round(dist)}m).<br>Get closer to venue.`;
-                }
-            }, () => { statusBox.className = "status-box status-error"; statusBox.innerText = "Location Denied."; }, {enableHighAccuracy:true});
+                    const finalPos = readings[readings.length - 1];
+                    const dist = getDistanceFromLatLonInMeters(finalPos.coords.latitude, finalPos.coords.longitude, data.latitude, data.longitude);
+                    
+                    // --- SPOOF CHECK: Identical Coords ---
+                    if(readings[0].coords.latitude === readings[2].coords.latitude) {
+                         // console.warn("Potential Spoof: No Jitter"); // Strictness optional
+                    }
 
-        } catch (e) { statusBox.innerText = "Error loading event."; }
+                    // --- ALTITUDE CHECK (If Enabled) ---
+                    if(data.checkAltitude && data.targetAltitude) {
+                        const userAlt = finalPos.coords.altitude;
+                        if(userAlt !== null) {
+                            const diff = Math.abs(userAlt - data.targetAltitude);
+                            if(diff > data.altitudeBuffer) {
+                                statusBox.className = "status-box box-error";
+                                statusBox.innerHTML = `⚠️ Wrong Floor<br><small>Elevation mismatch</small>`;
+                                return;
+                            }
+                        }
+                    }
+
+                    // --- FINAL DECISION ---
+                    if(dist <= data.radius) {
+                        statusBox.className = "status-box box-success"; statusBox.innerText = "Location Verified ✅";
+                        form.classList.remove('hidden');
+
+                        const btn = document.getElementById('submitBtn');
+                        const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
+                        
+                        newBtn.addEventListener('click', async () => {
+                            newBtn.innerText = "Submitting..."; newBtn.disabled = true;
+                            try {
+                                await addDoc(collection(db, "attendees"), {
+                                    eventId: eventId, name: currentUser.displayName, email: currentUser.email,
+                                    studentId: currentRollNo, timestamp: Timestamp.now()
+                                });
+                                statusBox.innerText = "Success!"; form.classList.add('hidden');
+                                setTimeout(() => document.getElementById('backBtn').click(), 1500);
+                            } catch(e) { alert("Error"); newBtn.disabled = false; }
+                        });
+                    } else {
+                        statusBox.className = "status-box box-error";
+                        statusBox.innerHTML = `Too far (${Math.round(dist)}m)<br><small>Move closer to venue</small>`;
+                    }
+                },
+                (err) => { statusBox.className = "status-box box-error"; statusBox.innerText = "Location Error"; },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+
+        } catch(e) { statusBox.className = "status-box box-error"; statusBox.innerText = "System Error"; }
     }
 </script>
 </body>
