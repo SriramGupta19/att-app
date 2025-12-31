@@ -3,133 +3,212 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Create Event</title>
+    <title>Admin Dashboard</title>
     <link rel="stylesheet" href="style.css">
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 </head>
 <body>
 
 <div class="container">
-    <h1>Create Attendance Event</h1>
+    <h1>Admin Dashboard</h1>
     
-    <input type="text" id="eventName" placeholder="Event Name (e.g., Math 101)">
-    <div id="map"></div> <label>Allowed Radius: <span id="radiusVal">50</span> meters</label>
-    <input type="range" id="radiusSlider" min="10" max="500" value="50">
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('create')">Create Event</div>
+        <div class="tab" onclick="switchTab('history'); loadHistory()">Event History</div>
+    </div>
 
-    <button id="createBtn">Create Event & Generate QR</button>
+    <div id="view-create">
+        <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101)">
+        <div id="map"></div>
+        <label>Radius: <span id="radiusVal">50</span>m</label>
+        <input type="range" id="radiusSlider" min="10" max="500" value="50">
+        <button id="createBtn">Create Event</button>
 
-    <div id="qr-section" style="display:none; text-align:center;">
-        <h3>Scan to Attend:</h3>
-        <canvas id="qr-code"></canvas>
-        <p><strong>Link:</strong> <a id="eventLink" href="#" target="_blank">Open Link</a></p>
+        <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px;">
+            <canvas id="qr-code"></canvas>
+            <p>Event Created! Scan or share this code.</p>
+        </div>
+    </div>
+
+    <div id="view-history" class="hidden">
+        <div id="events-list">Loading events...</div>
+    </div>
+
+    <div id="view-details" class="hidden">
+        <button class="secondary" onclick="switchTab('history')">← Back to List</button>
+        <h2 id="detail-title">Event Name</h2>
+        
+        <div style="display:flex; align-items:center; margin-bottom:15px;">
+            <span>Accepting Responses: </span>
+            <label class="switch">
+                <input type="checkbox" id="toggle-active">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <button onclick="downloadCSV()">Download Attendee List (CSV)</button>
+        
+        <h3>Attendees</h3>
+        <ul id="attendee-list"></ul>
     </div>
 </div>
 
 <script type="module">
-    import { db, collection, addDoc, Timestamp } from './script.js';
+    import { db, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, Timestamp } from './script.js';
 
+    // --- MAP SETUP (Leaflet) ---
     let map, marker, circle;
-    // Default location (e.g., New York)
-    let currentLat = 40.7128;
-    let currentLng = -74.0060; 
+    // Initialize map immediately
+    map = L.map('map').setView([40.7128, -74.0060], 18);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    marker = L.marker([40.7128, -74.0060], {draggable: true}).addTo(map);
+    circle = L.circle([40.7128, -74.0060], { color: 'red', radius: 50 }).addTo(map);
 
-    // Initialize Leaflet Map
-    function initMap() {
-        // 1. Create Map
-        map = L.map('map').setView([currentLat, currentLng], 18);
-
-        // 2. Add OpenStreetMap Tiles (The visual map)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        // 3. Add Draggable Marker
-        marker = L.marker([currentLat, currentLng], {draggable: true}).addTo(map);
-
-        // 4. Add Radius Circle
-        circle = L.circle([currentLat, currentLng], {
-            color: 'red',
-            fillColor: '#f03',
-            fillOpacity: 0.3,
-            radius: 50
-        }).addTo(map);
-
-        // 5. Update Circle when Marker moves
-        marker.on('drag', function(e) {
-            var newPos = e.target.getLatLng();
-            circle.setLatLng(newPos);
+    marker.on('drag', (e) => circle.setLatLng(e.target.getLatLng()));
+    if(navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(p => {
+            const loc = [p.coords.latitude, p.coords.longitude];
+            map.setView(loc, 18); marker.setLatLng(loc); circle.setLatLng(loc);
         });
-
-        // Try to get user location
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition((pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                map.setView([lat, lng], 18);
-                marker.setLatLng([lat, lng]);
-                circle.setLatLng([lat, lng]);
-            });
-        }
     }
 
-    // Run Map Init
-    initMap();
-
-    // Slider Logic
-    const slider = document.getElementById("radiusSlider");
-    slider.addEventListener("input", () => {
-        const rad = parseInt(slider.value);
-        document.getElementById("radiusVal").innerText = rad;
-        circle.setRadius(rad);
+    // Radius Slider
+    document.getElementById('radiusSlider').addEventListener('input', (e) => {
+        document.getElementById('radiusVal').innerText = e.target.value;
+        circle.setRadius(e.target.value);
     });
 
-    // Save Event Logic
-    document.getElementById("createBtn").addEventListener("click", async () => {
-        const name = document.getElementById("eventName").value;
-        if(!name) return alert("Please enter an event name");
-
-        // Get coordinates from Leaflet Marker
-        const lat = marker.getLatLng().lat;
-        const lng = marker.getLatLng().lng;
-        const radius = parseInt(slider.value);
-
+    // --- CREATE EVENT ---
+    document.getElementById('createBtn').addEventListener('click', async () => {
+        const name = document.getElementById('eventName').value;
+        if(!name) return alert("Enter name");
+        
         try {
             const docRef = await addDoc(collection(db, "events"), {
                 name: name,
-                latitude: lat,
-                longitude: lng,
-                radius: radius,
+                latitude: marker.getLatLng().lat,
+                longitude: marker.getLatLng().lng,
+                radius: parseInt(document.getElementById('radiusSlider').value),
                 isActive: true,
                 createdAt: Timestamp.now()
             });
 
-            // Generate Link
-            const baseUrl = window.location.href.replace('admin.html', 'index.html');
-            const attendanceUrl = `${baseUrl}?eventId=${docRef.id}`;
-
-            // Render QR
-            const qr = new QRious({
-                element: document.getElementById('qr-code'),
-                value: attendanceUrl,
-                size: 200
-            });
-
-            document.getElementById("qr-section").style.display = "block";
-            const linkTag = document.getElementById("eventLink");
-            linkTag.href = attendanceUrl;
-            linkTag.innerText = "Click to Test Attendance";
-            
-            alert("Event Created Successfully!");
-
-        } catch (e) {
-            console.error("Error adding document: ", e);
-            alert("Error creating event. Check console.");
-        }
+            // Generate QR
+            const url = `${window.location.href.replace('admin.html', 'index.html')}?id=${docRef.id}`;
+            new QRious({ element: document.getElementById('qr-code'), value: url, size: 200 });
+            document.getElementById('qr-result').classList.remove('hidden');
+            alert("Event Created!");
+        } catch(e) { console.error(e); alert("Error"); }
     });
+
+    // --- HISTORY & DETAILS ---
+    window.loadHistory = async () => {
+        const listDiv = document.getElementById('events-list');
+        listDiv.innerHTML = "Loading...";
+        
+        const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        
+        listDiv.innerHTML = "";
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            const statusClass = data.isActive ? 'status-active' : 'status-closed';
+            const statusText = data.isActive ? 'Live' : 'Closed';
+            
+            const div = document.createElement('div');
+            div.className = 'event-card';
+            div.innerHTML = `
+                <div><strong>${data.name}</strong></div>
+                <div class="status-badge ${statusClass}">${statusText}</div>
+            `;
+            div.onclick = () => openDetails(docSnap.id, data);
+            listDiv.appendChild(div);
+        });
+    };
+
+    let currentEventId = null;
+    let currentAttendees = [];
+
+    async function openDetails(id, data) {
+        currentEventId = id;
+        switchTab('details');
+        document.getElementById('detail-title').innerText = data.name;
+        
+        // Set Toggle State
+        const toggle = document.getElementById('toggle-active');
+        toggle.checked = data.isActive;
+        
+        // Add Listener for Toggle Change
+        toggle.onclick = async () => {
+            await updateDoc(doc(db, "events", id), { isActive: toggle.checked });
+            alert(`Event is now ${toggle.checked ? 'OPEN' : 'CLOSED'}`);
+        };
+
+        // Load Attendees
+        const list = document.getElementById('attendee-list');
+        list.innerHTML = "Loading attendees...";
+        
+        const q = query(collection(db, "attendees"), where("eventId", "==", id));
+        const snap = await getDocs(q);
+        
+        list.innerHTML = "";
+        currentAttendees = [];
+        
+        if (snap.empty) {
+            list.innerHTML = "<li>No attendees yet.</li>";
+        } else {
+            snap.forEach(d => {
+                const att = d.data();
+                currentAttendees.push(att);
+                const li = document.createElement('li');
+                // Format timestamp nicely
+                const time = att.timestamp ? att.timestamp.toDate().toLocaleTimeString() : 'N/A';
+                li.innerText = `${att.name} (${att.studentId || 'No ID'}) - ${time}`;
+                list.appendChild(li);
+            });
+        }
+    }
+
+    // --- CSV EXPORT ---
+    window.downloadCSV = () => {
+        if(currentAttendees.length === 0) return alert("No data to download");
+        
+        let csv = "Name,Student ID,Time\n";
+        currentAttendees.forEach(row => {
+            const time = row.timestamp ? row.timestamp.toDate().toLocaleString() : '';
+            csv += `${row.name},${row.studentId},"${time}"\n`;
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance_${currentEventId}.csv`;
+        a.click();
+    }
+
+    // --- UI TABS ---
+    window.switchTab = (tabName) => {
+        document.getElementById('view-create').classList.add('hidden');
+        document.getElementById('view-history').classList.add('hidden');
+        document.getElementById('view-details').classList.add('hidden');
+        
+        // Reset Tabs Style
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+
+        if(tabName === 'create') {
+            document.getElementById('view-create').classList.remove('hidden');
+            document.querySelector('.tab:nth-child(1)').classList.add('active');
+            setTimeout(() => map.invalidateSize(), 100); // Fix map rendering glitch
+        } else if (tabName === 'history') {
+            document.getElementById('view-history').classList.remove('hidden');
+            document.querySelector('.tab:nth-child(2)').classList.add('active');
+        } else if (tabName === 'details') {
+            document.getElementById('view-details').classList.remove('hidden');
+        }
+    }
 </script>
 </body>
 </html>
