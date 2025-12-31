@@ -2,138 +2,122 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Mark Attendance</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark Attendance</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <h1 id="event-title">Loading Event...</h1>
-    
-    <div id="status-box" class="status">Initializing...</div>
+    <div id="view-list">
+        <h1>Live Events</h1>
+        <p>Select an event to mark your attendance.</p>
+        <div id="live-events-list">Loading...</div>
+    </div>
 
-    <div id="form-container" style="display:none;">
-        <p>You are at the venue. Please sign in.</p>
-        <input type="text" id="studentName" placeholder="Enter Full Name">
-        <input type="text" id="studentID" placeholder="Student ID (Optional)">
-        <button id="submitBtn">Submit Attendance</button>
+    <div id="view-attendance" class="hidden">
+        <button class="secondary" onclick="location.reload()">← Back</button>
+        <h2 id="event-title">Verifying Location...</h2>
+        <div id="status-box" style="padding:15px; background:#eee; text-align:center; margin-bottom:15px;">Initializing...</div>
+
+        <div id="form-container" class="hidden">
+            <input type="text" id="studentName" placeholder="Your Name">
+            <input type="text" id="studentID" placeholder="ID Number">
+            <button id="submitBtn">Submit</button>
+        </div>
     </div>
 </div>
 
 <script type="module">
-    import { db, doc, getDoc, addDoc, collection, Timestamp, getDistanceFromLatLonInMeters } from './script.js';
+    import { db, collection, getDocs, query, where, addDoc, doc, getDoc, Timestamp, getDistanceFromLatLonInMeters } from './script.js';
 
-    // 1. Get Event ID from URL
+    // Check if URL has a specific ID (QR Code Scan)
     const urlParams = new URLSearchParams(window.location.search);
-    const eventId = urlParams.get('eventId');
-    
-    const statusBox = document.getElementById("status-box");
-    const formContainer = document.getElementById("form-container");
-    const eventTitle = document.getElementById("event-title");
+    const urlEventId = urlParams.get('id');
 
-    let eventData = null;
-
-    if (!eventId) {
-        statusBox.innerText = "Invalid Link. No Event ID found.";
-        statusBox.classList.add("error");
+    if (urlEventId) {
+        startAttendanceFlow(urlEventId);
     } else {
-        loadEvent();
+        loadLiveEvents();
     }
 
-    // 2. Load Event Data from Firebase
-    async function loadEvent() {
-        try {
-            const docRef = doc(db, "events", eventId);
-            const docSnap = await getDoc(docRef);
+    async function loadLiveEvents() {
+        const listDiv = document.getElementById('live-events-list');
+        // Only get events where isActive == true
+        const q = query(collection(db, "events"), where("isActive", "==", true));
+        const snapshot = await getDocs(q);
 
-            if (docSnap.exists()) {
-                eventData = docSnap.data();
-                eventTitle.innerText = eventData.name;
-                
-                if(!eventData.isActive) {
-                    statusBox.innerText = "This event is closed.";
-                    statusBox.classList.add("error");
-                    return;
-                }
-
-                // Event found, now check location
-                checkLocation();
-            } else {
-                statusBox.innerText = "Event not found!";
-                statusBox.classList.add("error");
-            }
-        } catch (error) {
-            console.error(error);
-            statusBox.innerText = "Error loading event.";
-        }
-    }
-
-    // 3. Check User Location
-    function checkLocation() {
-        statusBox.innerText = "Requesting Location Access...";
-        
-        if (!navigator.geolocation) {
-            statusBox.innerText = "Geolocation is not supported by your browser.";
+        listDiv.innerHTML = "";
+        if(snapshot.empty) {
+            listDiv.innerHTML = "<p>No live events found.</p>";
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const userLat = position.coords.latitude;
-                const userLng = position.coords.longitude;
-                
-                // Calculate Distance
-                const distance = getDistanceFromLatLonInMeters(
-                    userLat, userLng, 
-                    eventData.latitude, eventData.longitude
-                );
-
-                console.log(`Distance: ${distance} meters, Allowed: ${eventData.radius}`);
-
-                if (distance <= eventData.radius) {
-                    // Success!
-                    statusBox.innerText = "Location Verified! You are within range.";
-                    statusBox.classList.add("success");
-                    statusBox.classList.remove("error");
-                    formContainer.style.display = "block";
-                } else {
-                    // Fail
-                    statusBox.innerText = `You are too far away (${Math.round(distance)}m). You must be within ${eventData.radius}m.`;
-                    statusBox.classList.add("error");
-                }
-            },
-            (error) => {
-                statusBox.innerText = "Location Access Denied. Please allow location to mark attendance.";
-                statusBox.classList.add("error");
-            },
-            { enableHighAccuracy: true } // Request best GPS accuracy
-        );
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const div = document.createElement('div');
+            div.className = 'event-card';
+            div.innerHTML = `<strong>${data.name}</strong> <span class="status-badge status-active">Live</span>`;
+            div.onclick = () => startAttendanceFlow(doc.id);
+            listDiv.appendChild(div);
+        });
     }
 
-    // 4. Submit Attendance
-    document.getElementById("submitBtn").addEventListener("click", async () => {
-        const name = document.getElementById("studentName").value;
-        const studentId = document.getElementById("studentID").value;
+    async function startAttendanceFlow(eventId) {
+        document.getElementById('view-list').classList.add('hidden');
+        document.getElementById('view-attendance').classList.remove('hidden');
+        
+        const statusBox = document.getElementById('status-box');
+        
+        // 1. Fetch Event Data
+        const eventRef = doc(db, "events", eventId);
+        const eventSnap = await getDoc(eventRef);
+        
+        if (!eventSnap.exists()) return statusBox.innerText = "Event not found.";
+        const eventData = eventSnap.data();
+        document.getElementById('event-title').innerText = eventData.name;
 
-        if(!name) return alert("Please enter your name.");
-
-        try {
-            await addDoc(collection(db, "attendees"), {
-                eventId: eventId,
-                eventName: eventData.name,
-                name: name,
-                studentId: studentId,
-                timestamp: Timestamp.now()
-            });
-            
-            formContainer.innerHTML = "<h2>Attendance Marked! ✅</h2>";
-            statusBox.style.display = 'none';
-        } catch (e) {
-            alert("Error submitting. Try again.");
-            console.error(e);
+        if (!eventData.isActive) {
+            statusBox.innerText = "This event has been closed by the admin.";
+            statusBox.classList.add('status-closed');
+            return;
         }
-    });
+
+        // 2. Geolocation Check
+        statusBox.innerText = "Checking GPS...";
+        if(!navigator.geolocation) return statusBox.innerText = "GPS not supported.";
+
+        navigator.geolocation.getCurrentPosition(pos => {
+            const dist = getDistanceFromLatLonInMeters(
+                pos.coords.latitude, pos.coords.longitude,
+                eventData.latitude, eventData.longitude
+            );
+            
+            if (dist <= eventData.radius) {
+                statusBox.innerText = "✅ You are at the venue.";
+                statusBox.classList.add('status-active');
+                document.getElementById('form-container').classList.remove('hidden');
+                
+                // Submit Handler
+                document.getElementById('submitBtn').onclick = async () => {
+                    const name = document.getElementById('studentName').value;
+                    const sid = document.getElementById('studentID').value;
+                    if(!name) return alert("Enter Name");
+                    
+                    await addDoc(collection(db, "attendees"), {
+                        eventId: eventId, name: name, studentId: sid, timestamp: Timestamp.now()
+                    });
+                    alert("Success!");
+                    location.reload(); // Return to list
+                };
+            } else {
+                statusBox.innerText = `❌ Too far away (${Math.round(dist)}m). Move closer to the venue.`;
+                statusBox.classList.add('status-closed');
+            }
+        }, err => {
+            statusBox.innerText = "GPS Error: " + err.message;
+        }, { enableHighAccuracy: true });
+    }
 </script>
 </body>
 </html>
