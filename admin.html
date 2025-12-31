@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
+    
     <link rel="stylesheet" href="style.css">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
@@ -17,37 +18,45 @@
     <h1>Admin Dashboard</h1>
     
     <div class="tabs">
-        <div class="tab active" onclick="switchTab('create')">Create Event</div>
-        <div class="tab" onclick="switchTab('history'); loadHistory()">Event History</div>
+        <div id="tab-create" class="tab active" onclick="switchTab('create')">Create Event</div>
+        <div id="tab-history" class="tab" onclick="switchTab('history'); loadHistory()">Event History</div>
     </div>
 
     <div id="view-create">
-        <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101 - Lecture 4)">
+        <p style="color:#666; margin-bottom:10px;">Drag the pin to set the venue location.</p>
+        
+        <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101)">
+        
         <div id="map"></div>
+        
         <div class="flex-row">
             <label>Geofence Radius: <strong id="radiusVal">50</strong> m</label>
         </div>
         <input type="range" id="radiusSlider" min="10" max="500" value="50">
         
-        <button id="createBtn">Create Event</button>
+        <button id="createBtn">Create Event & Generate QR</button>
 
-        <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px; background:#f0f0f0; padding:10px; border-radius:8px;">
-            <h3>Event Created!</h3>
+        <div id="qr-result" style="display: none; margin-top: 20px; text-align: center; border: 2px dashed #ddd; padding: 20px; background: #f9f9f9; border-radius: 10px;">
+            <h3 style="margin-top:0; color:#27ae60;">✅ Event Created!</h3>
             <canvas id="qr-code"></canvas>
-            <p style="font-size:0.9em; color:#666;">Scan or share the link below:</p>
-            <a id="share-link" href="#" target="_blank">Event Link</a>
+            <p style="margin-bottom:5px;">Share this link with students:</p>
+            <a id="share-link" href="#" target="_blank" style="word-break: break-all; font-weight:bold;">Link</a>
         </div>
     </div>
 
     <div id="view-history" class="hidden">
-        <div id="events-list">Loading events...</div>
+        <h3>Past Events</h3>
+        <div id="events-list">
+            <p style="color:#888;">Loading events...</p>
+        </div>
     </div>
 
     <div id="view-details" class="hidden">
         <div class="flex-row">
-            <button class="secondary" style="width: auto;" onclick="switchTab('history')">← Back</button>
-            <div class="flex-row" style="margin:0;">
-                <span>Status: </span>
+            <button class="secondary" style="width: auto;" onclick="switchTab('history')">← Back to History</button>
+            
+            <div style="display:flex; align-items:center;">
+                <span style="font-size:0.9em; margin-right:5px;">Accepting Responses:</span>
                 <label class="switch">
                     <input type="checkbox" id="toggle-active">
                     <span class="slider"></span>
@@ -55,98 +64,156 @@
             </div>
         </div>
         
-        <h2 id="detail-title">Event Name</h2>
-        <p style="color:#666; font-size:0.9em;">Total Attendees: <strong id="count-val">0</strong></p>
+        <h2 id="detail-title" style="margin-bottom: 5px;">Event Name</h2>
+        <p style="color:#666; font-size:0.9em; margin-top:0;">Total Attendees: <strong id="count-val">0</strong></p>
 
-        <button onclick="downloadCSV()">Download Attendee List (CSV)</button>
+        <button onclick="downloadCSV()" style="margin-bottom: 20px;">Download Attendee List (CSV)</button>
         
-        <h3>Attendees</h3>
-        <ul id="attendee-list" style="max-height: 200px; overflow-y: auto; background: #fafafa; padding: 10px; border: 1px solid #eee;"></ul>
+        <div style="background: #fafafa; border: 1px solid #eee; padding: 10px; border-radius: 8px;">
+            <h4 style="margin-top:0;">Attendees Log:</h4>
+            <ul id="attendee-list" style="padding-left: 20px; max-height: 200px; overflow-y: auto;">
+                <li>Loading...</li>
+            </ul>
+        </div>
 
-        <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
         <button class="danger" onclick="deleteCurrentEvent()">Delete This Event</button>
     </div>
+
 </div>
 
 <script type="module">
+    // Import functions from script.js
     import { db, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, writeBatch, Timestamp } from './script.js';
 
-    // --- MAP SETUP ---
+    // --- MAP VARIABLES ---
     let map, marker, circle;
-    // Default: New York (updates to user loc below)
-    let startLoc = [40.7128, -74.0060]; 
 
-    map = L.map('map').setView(startLoc, 18);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-    marker = L.marker(startLoc, {draggable: true}).addTo(map);
-    circle = L.circle(startLoc, { color: 'red', radius: 50 }).addTo(map);
+    // --- INITIALIZE MAP ---
+    function initMap() {
+        // Default Location: Starts at (0,0) then updates to user location
+        let startLoc = [40.7128, -74.0060]; 
 
-    // Sync Marker & Circle
-    marker.on('drag', (e) => circle.setLatLng(e.target.getLatLng()));
+        map = L.map('map').setView(startLoc, 18);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+            attribution: '© OpenStreetMap' 
+        }).addTo(map);
 
-    // Get Admin Location
-    if(navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(p => {
-            const loc = [p.coords.latitude, p.coords.longitude];
-            map.setView(loc, 18); marker.setLatLng(loc); circle.setLatLng(loc);
+        marker = L.marker(startLoc, {draggable: true}).addTo(map);
+        circle = L.circle(startLoc, { color: 'red', fillColor: '#f03', fillOpacity: 0.2, radius: 50 }).addTo(map);
+
+        // Update Circle when Marker is dragged
+        marker.on('drag', (e) => {
+            circle.setLatLng(e.target.getLatLng());
         });
+
+        // Try to get Admin's real location
+        if(navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(p => {
+                const loc = [p.coords.latitude, p.coords.longitude];
+                map.setView(loc, 18); 
+                marker.setLatLng(loc); 
+                circle.setLatLng(loc);
+            });
+        }
     }
 
-    // Slider UI
-    document.getElementById('radiusSlider').addEventListener('input', (e) => {
-        document.getElementById('radiusVal').innerText = e.target.value;
-        circle.setRadius(e.target.value);
+    // Initialize Map on Load
+    initMap();
+
+    // --- SLIDER LOGIC ---
+    const slider = document.getElementById('radiusSlider');
+    slider.addEventListener('input', (e) => {
+        const val = e.target.value;
+        document.getElementById('radiusVal').innerText = val;
+        circle.setRadius(val);
     });
 
-    // --- 1. CREATE EVENT ---
+    // --- TAB SWITCHING LOGIC ---
+    window.switchTab = (tabName) => {
+        // 1. Hide all sections
+        document.getElementById('view-create').classList.add('hidden');
+        document.getElementById('view-history').classList.add('hidden');
+        document.getElementById('view-details').classList.add('hidden');
+        
+        // 2. Remove active class from tabs
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+
+        // 3. Show selected section
+        if(tabName === 'create') {
+            document.getElementById('view-create').classList.remove('hidden');
+            document.getElementById('tab-create').classList.add('active');
+            setTimeout(() => map.invalidateSize(), 200); // Refreshes map to prevent grey box
+        } 
+        else if (tabName === 'history') {
+            document.getElementById('view-history').classList.remove('hidden');
+            document.getElementById('tab-history').classList.add('active');
+        } 
+        else if (tabName === 'details') {
+            document.getElementById('view-details').classList.remove('hidden');
+        }
+    }
+
+    // --- FEATURE 1: CREATE EVENT ---
     document.getElementById('createBtn').addEventListener('click', async () => {
-        const name = document.getElementById('eventName').value;
-        if(!name) return alert("Please enter an event name");
+        const nameInput = document.getElementById('eventName');
+        const name = nameInput.value;
+        const btn = document.getElementById('createBtn');
+
+        if(!name) return alert("Please enter an event name first.");
         
-        document.getElementById('createBtn').innerText = "Creating...";
-        
+        btn.innerText = "Creating...";
+        btn.disabled = true;
+
         try {
+            // 1. Save to Firebase
             const docRef = await addDoc(collection(db, "events"), {
                 name: name,
                 latitude: marker.getLatLng().lat,
                 longitude: marker.getLatLng().lng,
-                radius: parseInt(document.getElementById('radiusSlider').value),
-                isActive: true,
+                radius: parseInt(slider.value),
+                isActive: true, // Default to true
                 createdAt: Timestamp.now()
             });
 
-            // Generate QR
+            // 2. Generate QR Code
             const baseUrl = window.location.href.replace('admin.html', 'index.html');
-            const url = `${baseUrl}?id=${docRef.id}`;
+            const finalUrl = `${baseUrl}?id=${docRef.id}`;
             
-            new QRious({ element: document.getElementById('qr-code'), value: url, size: 200 });
+            const qr = new QRious({
+                element: document.getElementById('qr-code'),
+                value: finalUrl,
+                size: 200
+            });
+
+            // 3. Update UI
+            document.getElementById('share-link').href = finalUrl;
+            document.getElementById('share-link').innerText = finalUrl;
+            document.getElementById('qr-result').style.display = 'block'; // Show result
             
-            const linkTag = document.getElementById('share-link');
-            linkTag.href = url;
-            linkTag.innerText = url;
+            btn.innerText = "Create Another Event";
+            btn.disabled = false;
+            nameInput.value = ""; // Clear input
 
-            document.getElementById('qr-result').classList.remove('hidden');
-            document.getElementById('createBtn').innerText = "Create Event";
-            alert("Event Created Successfully!");
-
-        } catch(e) { 
-            console.error(e); 
-            alert("Error creating event"); 
-            document.getElementById('createBtn').innerText = "Create Event";
+        } catch(e) {
+            console.error("Error:", e);
+            alert("Error creating event. Check console.");
+            btn.innerText = "Create Event";
+            btn.disabled = false;
         }
     });
 
-    // --- 2. EVENT HISTORY ---
+    // --- FEATURE 2: LOAD HISTORY ---
     window.loadHistory = async () => {
         const listDiv = document.getElementById('events-list');
-        listDiv.innerHTML = "<p>Loading events...</p>";
+        listDiv.innerHTML = "<p>Loading...</p>";
         
         const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
         
         listDiv.innerHTML = "";
+        
         if(snapshot.empty) {
-            listDiv.innerHTML = "<p>No events found.</p>";
+            listDiv.innerHTML = "<p>No past events found.</p>";
             return;
         }
 
@@ -155,37 +222,52 @@
             const statusClass = data.isActive ? 'status-active' : 'status-closed';
             const statusText = data.isActive ? 'Live' : 'Closed';
             
+            // Create Card HTML
             const div = document.createElement('div');
             div.className = 'event-card';
             div.innerHTML = `
                 <div>
-                    <div style="font-size:1.1em; font-weight:bold;">${data.name}</div>
-                    <div style="font-size:0.8em; color:#888;">${data.createdAt.toDate().toLocaleDateString()}</div>
+                    <div style="font-weight:bold; font-size:1.1em;">${data.name}</div>
+                    <div style="font-size:0.85em; color:#999;">${data.createdAt.toDate().toLocaleDateString()}</div>
                 </div>
                 <div class="status-badge ${statusClass}">${statusText}</div>
             `;
+            // Add Click Event
             div.onclick = () => openDetails(docSnap.id, data);
             listDiv.appendChild(div);
         });
     };
 
-    // --- 3. EVENT DETAILS & DELETE ---
+    // --- FEATURE 3: EVENT DETAILS ---
     let currentEventId = null;
     let currentAttendees = [];
 
     async function openDetails(id, data) {
         currentEventId = id;
-        switchTab('details');
-        document.getElementById('detail-title').innerText = data.name;
+        switchTab('details'); // Switch view
         
-        // Toggle Logic
-        const toggle = document.getElementById('toggle-active');
-        toggle.checked = data.isActive;
-        toggle.onclick = async () => {
-            await updateDoc(doc(db, "events", id), { isActive: toggle.checked });
-        };
+        document.getElementById('detail-title').innerText = data.name;
 
-        // Load Attendees
+        // Setup Toggle Switch
+        const toggle = document.getElementById('toggle-active');
+        toggle.checked = data.isActive; // Set initial state
+        
+        // Remove old listener to avoid duplicates
+        const newToggle = toggle.cloneNode(true);
+        toggle.parentNode.replaceChild(newToggle, toggle);
+        
+        // Add new listener
+        newToggle.addEventListener('change', async (e) => {
+            const newState = e.target.checked;
+            await updateDoc(doc(db, "events", id), { isActive: newState });
+            // alert(`Event is now ${newState ? 'OPEN' : 'CLOSED'}`);
+        });
+
+        // Load Attendees List
+        loadAttendees(id);
+    }
+
+    async function loadAttendees(id) {
         const list = document.getElementById('attendee-list');
         list.innerHTML = "<li>Loading...</li>";
         
@@ -197,84 +279,68 @@
         document.getElementById('count-val').innerText = snap.size;
 
         if (snap.empty) {
-            list.innerHTML = "<li style='list-style:none; color:#999;'>No attendees yet.</li>";
+            list.innerHTML = "<li style='color:#999; list-style:none;'>No attendees yet.</li>";
         } else {
             snap.forEach(d => {
                 const att = d.data();
                 currentAttendees.push(att);
                 const li = document.createElement('li');
-                li.innerText = `${att.name} (${att.studentId}) - ${att.timestamp.toDate().toLocaleTimeString()}`;
+                // Check if studentId exists
+                const idTxt = att.studentId ? `(ID: ${att.studentId})` : '';
+                li.innerText = `${att.name} ${idTxt} - ${att.timestamp.toDate().toLocaleTimeString()}`;
                 list.appendChild(li);
             });
         }
     }
 
-    // --- DELETE LOGIC (NEW) ---
-    window.deleteCurrentEvent = async () => {
-        if(!currentEventId) return;
-
-        const confirmDelete = confirm("ARE YOU SURE?\n\nThis will permanently delete the event and all attendee records associated with it.\n\nThis action cannot be undone.");
-        
-        if (confirmDelete) {
-            try {
-                // We use a Batch to delete the event AND all its attendees together
-                const batch = writeBatch(db);
-
-                // 1. Delete the Event Document
-                const eventRef = doc(db, "events", currentEventId);
-                batch.delete(eventRef);
-
-                // 2. Find and Delete all Attendee Documents for this event
-                const q = query(collection(db, "attendees"), where("eventId", "==", currentEventId));
-                const attendeeSnaps = await getDocs(q);
-                
-                attendeeSnaps.forEach((attDoc) => {
-                    batch.delete(attDoc.ref);
-                });
-
-                // 3. Commit the changes
-                await batch.commit();
-
-                alert("Event and data deleted.");
-                switchTab('history');
-                loadHistory(); // Refresh list
-
-            } catch (e) {
-                console.error("Error deleting:", e);
-                alert("Error deleting event. Check console.");
-            }
-        }
-    };
-
+    // --- FEATURE 4: CSV DOWNLOAD ---
     window.downloadCSV = () => {
-        if(currentAttendees.length === 0) return alert("No data to download");
+        if(currentAttendees.length === 0) return alert("No data to download.");
+        
         let csv = "Name,Student ID,Time\n";
         currentAttendees.forEach(row => {
-            csv += `${row.name},${row.studentId},"${row.timestamp.toDate().toLocaleString()}"\n`;
+            const time = row.timestamp.toDate().toLocaleString();
+            // Handle commas in names by wrapping in quotes
+            csv += `"${row.name}",${row.studentId},"${time}"\n`;
         });
+        
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = `attendance_${currentEventId}.csv`;
+        a.href = url;
+        a.download = `attendance_${currentEventId}.csv`;
         a.click();
-    }
+    };
 
-    // --- TAB SWITCHER ---
-    window.switchTab = (tabName) => {
-        ['create', 'history', 'details'].forEach(t => document.getElementById(`view-${t}`).classList.add('hidden'));
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    // --- FEATURE 5: DELETE EVENT ---
+    window.deleteCurrentEvent = async () => {
+        if(!currentEventId) return;
 
-        if(tabName === 'create') {
-            document.getElementById('view-create').classList.remove('hidden');
-            document.querySelector('.tab:nth-child(1)').classList.add('active');
-            setTimeout(() => map.invalidateSize(), 200); // Fix map render issue
-        } else if (tabName === 'history') {
-            document.getElementById('view-history').classList.remove('hidden');
-            document.querySelector('.tab:nth-child(2)').classList.add('active');
-        } else if (tabName === 'details') {
-            document.getElementById('view-details').classList.remove('hidden');
+        if(confirm("Are you sure? This will delete the event and all attendee data permanently.")) {
+            try {
+                const batch = writeBatch(db);
+                
+                // 1. Delete Event
+                const eventRef = doc(db, "events", currentEventId);
+                batch.delete(eventRef);
+
+                // 2. Delete Attendees
+                const q = query(collection(db, "attendees"), where("eventId", "==", currentEventId));
+                const snaps = await getDocs(q);
+                snaps.forEach(s => batch.delete(s.ref));
+
+                await batch.commit();
+                
+                alert("Deleted successfully.");
+                switchTab('history');
+                loadHistory(); // Refresh list
+
+            } catch(e) {
+                console.error(e);
+                alert("Error deleting.");
+            }
         }
-    }
+    };
 </script>
 </body>
 </html>
