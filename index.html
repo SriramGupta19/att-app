@@ -14,6 +14,21 @@
         .google-btn:hover { background-color: #357ae8; }
         .user-header { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #ddd; font-size: 0.9em; color: #555; }
         .logout { color: #c0392b; cursor: pointer; text-decoration: underline; font-weight: bold; }
+        
+        .status-done { background-color: #d1ecf1; color: #0c5460; }
+        
+        /* Auto-fill display style */
+        .info-row {
+            background: #fff;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .info-label { font-weight: bold; color: #555; }
+        .info-val { font-weight: bold; color: #333; }
     </style>
 </head>
 <body>
@@ -47,16 +62,23 @@
         <div id="view-attendance" class="hidden">
             <button class="secondary" style="width:auto; margin-bottom:15px;" id="backBtn">← Back to List</button>
             
-            <h2 id="event-title">Verifying Location...</h2>
+            <h2 id="event-title">Verifying...</h2>
             
             <div id="status-box" style="padding:15px; background:#f0f0f0; text-align:center; border-radius:5px; margin-bottom:15px;">
                 Initializing...
             </div>
 
             <div id="form-container" class="hidden">
-                <p><strong>Name:</strong> <span id="display-name"></span></p>
-                <input type="text" id="studentID" placeholder="Enter Roll No / Student ID">
-                <button id="submitBtn">Confirm Attendance</button>
+                <div class="info-row">
+                    <span class="info-label">Name:</span>
+                    <span class="info-val" id="display-name"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Roll No:</span>
+                    <span class="info-val" id="display-roll"></span>
+                </div>
+                
+                <button id="submitBtn" style="margin-top: 20px;">Confirm Attendance</button>
             </div>
         </div>
     </div>
@@ -78,12 +100,11 @@
     };
 
     let currentUser = null;
+    let currentRollNo = "Unknown";
 
     // --- 1. AUTHENTICATION STATE OBSERVER ---
     onAuthStateChanged(auth, (user) => {
         if (user) {
-            console.log("User detected:", user.email);
-
             // Domain Check
             if (!user.email.endsWith('@nitc.ac.in')) {
                 alert("ACCESS DENIED\n\nYou must use an @nitc.ac.in email address.");
@@ -91,10 +112,28 @@
                 return;
             }
 
+            // --- ROLL NUMBER EXTRACTION LOGIC ---
+            // Format: name_rollno@nitc.ac.in
+            try {
+                const parts = user.email.split('@')[0]; // get "name_rollno"
+                const underscoreIndex = parts.indexOf('_');
+                
+                if (underscoreIndex !== -1) {
+                    // Grab everything after the first underscore AND force Uppercase
+                    currentRollNo = parts.substring(underscoreIndex + 1).toUpperCase();
+                } else {
+                    currentRollNo = "N/A"; // Handle faculty or non-standard emails
+                }
+            } catch (e) {
+                console.error("Error parsing roll number", e);
+                currentRollNo = "Error";
+            }
+
             // Setup User Session
             currentUser = user;
             document.getElementById('user-email').innerText = user.email;
             document.getElementById('display-name').innerText = user.displayName;
+            document.getElementById('display-roll').innerText = currentRollNo;
             
             showApp(); 
 
@@ -108,7 +147,6 @@
             }
 
         } else {
-            console.log("No user signed in.");
             showLogin();
         }
     });
@@ -118,15 +156,10 @@
     // LOGIN
     document.getElementById('googleBtn').addEventListener('click', () => {
         const provider = new GoogleAuthProvider();
-        signInWithPopup(auth, provider)
-            .then((result) => {
-                console.log("Login Success:", result.user.email);
-            })
-            .catch((error) => {
-                console.error("Login Error:", error);
-                document.getElementById('login-error').innerText = "Error: " + error.message;
-                alert("Login Failed: " + error.message);
-            });
+        signInWithPopup(auth, provider).catch((error) => {
+            console.error("Login Error:", error);
+            document.getElementById('login-error').innerText = error.message;
+        });
     });
 
     // LOGOUT
@@ -138,7 +171,6 @@
 
     // BACK BUTTON
     document.getElementById('backBtn').addEventListener('click', () => {
-        // Clear QR ID from URL without refreshing
         const newUrl = window.location.pathname;
         window.history.pushState({path: newUrl}, '', newUrl);
 
@@ -160,7 +192,18 @@
         views.attendance.classList.add('hidden');
     }
 
-    // --- 4. FETCH EVENTS ---
+    // --- 4. CHECK IF ALREADY ATTENDED ---
+    async function hasAttended(eventId) {
+        const q = query(
+            collection(db, "attendees"), 
+            where("eventId", "==", eventId),
+            where("email", "==", currentUser.email)
+        );
+        const snapshot = await getDocs(q);
+        return !snapshot.empty; 
+    }
+
+    // --- 5. FETCH EVENTS (With Status Check) ---
     async function loadLiveEvents() {
         const listDiv = document.getElementById('live-events-list');
         listDiv.innerHTML = "<p>Refreshing list...</p>";
@@ -175,21 +218,31 @@
                 return;
             }
 
-            snapshot.forEach(docSnap => {
+            for (const docSnap of snapshot.docs) {
                 const data = docSnap.data();
+                const attended = await hasAttended(docSnap.id);
+                
                 const div = document.createElement('div');
                 div.className = 'event-card';
-                div.innerHTML = `<strong>${data.name}</strong> <span class="status-badge status-active">Live</span>`;
-                div.onclick = () => startAttendanceFlow(docSnap.id);
+                
+                let badge = '<span class="status-badge status-active">Live</span>';
+                let clickAction = () => startAttendanceFlow(docSnap.id);
+                
+                if (attended) {
+                    badge = '<span class="status-badge status-done">✅ Done</span>';
+                }
+
+                div.innerHTML = `<strong>${data.name}</strong> ${badge}`;
+                div.onclick = clickAction;
                 listDiv.appendChild(div);
-            });
+            }
         } catch (e) {
             console.error(e);
             listDiv.innerHTML = "<p style='color:red'>Error loading events.</p>";
         }
     }
 
-    // --- 5. ATTENDANCE LOGIC ---
+    // --- 6. ATTENDANCE LOGIC ---
     async function startAttendanceFlow(eventId) {
         views.list.classList.add('hidden');
         views.attendance.classList.remove('hidden');
@@ -202,6 +255,22 @@
         formContainer.classList.add('hidden');
 
         try {
+            // A. Check if already attended first
+            const alreadyAttended = await hasAttended(eventId);
+            if (alreadyAttended) {
+                statusBox.innerText = "✅ You have already marked attendance.";
+                statusBox.classList.add('status-active');
+                statusBox.style.backgroundColor = "#d4edda";
+                statusBox.style.color = "#155724";
+                
+                // Fetch Event Name just for display
+                const eSnap = await getDoc(doc(db, "events", eventId));
+                if(eSnap.exists()) document.getElementById('event-title').innerText = eSnap.data().name;
+                
+                return; 
+            }
+
+            // B. Fetch Event Data
             const eventRef = doc(db, "events", eventId);
             const eventSnap = await getDoc(eventRef);
 
@@ -220,7 +289,7 @@
                 return;
             }
 
-            // GPS Check
+            // C. GPS Check
             statusBox.innerText = "Checking GPS Location...";
             
             if(!navigator.geolocation) {
@@ -245,9 +314,6 @@
                     submitBtn.parentNode.replaceChild(newBtn, submitBtn);
 
                     newBtn.addEventListener('click', async () => {
-                        const sid = document.getElementById('studentID').value;
-                        if(!sid) return alert("Please enter your Student ID / Roll No");
-
                         newBtn.innerText = "Marking Attendance...";
                         newBtn.disabled = true;
 
@@ -256,7 +322,8 @@
                                 eventId: eventId,
                                 name: currentUser.displayName,
                                 email: currentUser.email,
-                                studentId: sid,
+                                // ENSURES UPPERCASE ON SUBMIT
+                                studentId: String(currentRollNo).toUpperCase(), 
                                 timestamp: Timestamp.now()
                             });
                             alert("Success! Attendance Marked.");
