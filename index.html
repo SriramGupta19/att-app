@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Event Attendance</title>
+    <title>NITC Attendance</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #2563eb; --bg: #f3f4f6; --text-main: #1f2937; --error: #ef4444; }
@@ -16,7 +16,7 @@
 
         /* Login */
         .login-wrapper { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; padding: 20px; background: white; text-align: center; }
-        .google-btn { background: #4285F4; color: white; border: none; padding: 15px 24px; border-radius: 12px; font-weight: 600; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; }
+        .google-btn { background: #4285F4; color: white; border: none; padding: 15px 24px; border-radius: 12px; font-weight: 600; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-top: 10px; }
         
         /* Header */
         .user-header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #eee; }
@@ -48,8 +48,15 @@
 <div class="container">
     <div id="view-login" class="login-wrapper hidden fade-in">
         <div style="font-size:3rem; margin-bottom:20px;">📍</div>
-        <div style="font-size:1.5rem; font-weight:700;">Event Attendance</div>
-        <p style="color:#666; margin-bottom:30px;">Sign in to mark attendance</p>
+        <div style="font-size:1.5rem; font-weight:700;">NITC Attendance</div>
+        
+        <p style="color:#666; margin-bottom:10px;">Sign in to mark attendance</p>
+        
+        <p style="color:#666; margin-bottom:30px; font-size: 0.9em; max-width: 80%;">
+            <strong>NITC Students:</strong> Use College Email<br>
+            <strong>Guests:</strong> Use Any Valid Email
+        </p>
+        
         <button id="googleBtn" class="google-btn">Sign in with Google</button>
         <p id="login-error" style="color:var(--error); margin-top:20px; font-size:0.85rem;"></p>
     </div>
@@ -94,12 +101,12 @@
     let currentUser = null;
     let currentRollNo = "N/A";
 
+    // --- AUTH OBSERVER ---
     onAuthStateChanged(auth, (user) => {
         if (user) {
-            // LOGIN LOGIC: Allow everyone initially
             currentUser = user;
             
-            // Try extract Roll No (if NITC email)
+            // Logic: If NITC email, try extract roll number. Else mark as External.
             if (user.email.endsWith('@nitc.ac.in')) {
                 try {
                     const parts = user.email.split('@')[0];
@@ -110,13 +117,17 @@
                 currentRollNo = "External";
             }
 
+            // Update Header UI
             document.getElementById('header-name').innerText = user.displayName;
-            document.getElementById('header-email').innerText = currentRollNo !== "External" ? currentRollNo : "External Guest";
+            document.getElementById('header-email').innerText = currentRollNo !== "External" ? currentRollNo : "Guest User";
+            
+            // Update Form UI
             document.getElementById('display-name').innerText = user.displayName;
             document.getElementById('display-roll').innerText = currentRollNo;
 
             showApp();
             
+            // Handle Deep Link (QR Scan)
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('id')) startAttendanceFlow(urlParams.get('id'));
             else loadLiveEvents();
@@ -135,6 +146,7 @@
     function showLogin() { views.login.classList.remove('hidden'); views.app.classList.add('hidden'); }
     function showApp() { views.login.classList.add('hidden'); views.app.classList.remove('hidden'); views.list.classList.remove('hidden'); views.attendance.classList.add('hidden'); }
 
+    // --- DATA FUNCTIONS ---
     async function hasAttended(eventId) {
         const q = query(collection(db, "attendees"), where("eventId", "==", eventId), where("email", "==", currentUser.email));
         return !(await getDocs(q)).empty;
@@ -151,13 +163,19 @@
             for (const docSnap of snapshot.docs) {
                 const data = docSnap.data();
                 const attended = await hasAttended(docSnap.id);
-                // Badge Logic
+                
                 let badgeClass = 'status-active'; let badgeText = 'Live';
                 if (attended) { badgeClass = 'status-done'; badgeText = 'Done'; }
                 
+                // Show Type (Internal/External)
+                const typeLabel = data.eventType === 'internal' ? '🔒 Internal' : '🌍 External';
+
                 const div = document.createElement('div');
                 div.className = 'event-card';
-                div.innerHTML = `<div><div style="font-weight:600;">${data.name}</div><div style="font-size:0.75rem; color:#666;">${data.eventType === 'internal' ? '🔒 Internal' : '🌍 External'}</div></div>
+                div.innerHTML = `<div>
+                                    <div style="font-weight:600;">${data.name}</div>
+                                    <div style="font-size:0.75rem; color:#666;">${typeLabel}</div>
+                                 </div>
                                  <div class="status-badge ${badgeClass}">${badgeText}</div>`;
                 div.onclick = () => startAttendanceFlow(docSnap.id);
                 listDiv.appendChild(div);
@@ -173,7 +191,6 @@
         formContainer.classList.add('hidden');
 
         try {
-            // 1. Fetch Event
             const eventSnap = await getDoc(doc(db, "events", eventId));
             if (!eventSnap.exists() || !eventSnap.data().isActive) {
                 statusBox.className = "status-box status-error"; statusBox.innerText = "Event Closed."; return;
@@ -181,21 +198,19 @@
             const data = eventSnap.data();
             document.getElementById('event-title').innerText = data.name;
 
-            // 2. CHECK EVENT TYPE PERMISSION
+            // --- PERMISSION CHECK ---
             if (data.eventType === 'internal') {
                 if (!currentUser.email.endsWith('@nitc.ac.in')) {
                     statusBox.className = "status-box status-error";
-                    statusBox.innerHTML = "⛔ Access Denied<br><small>This event is for NITC students only.</small>";
+                    statusBox.innerHTML = "⛔ <b>Access Denied</b><br><small>This event is restricted to NITC students.</small>";
                     return;
                 }
             }
 
-            // 3. Check Duplicate
             if (await hasAttended(eventId)) {
                 statusBox.className = "status-box status-success"; statusBox.innerText = "Already Attended ✅"; return;
             }
 
-            // 4. GPS Check
             if(!navigator.geolocation) { statusBox.className = "status-box status-error"; statusBox.innerText = "GPS Disabled."; return; }
             navigator.geolocation.getCurrentPosition(pos => {
                 const dist = getDistanceFromLatLonInMeters(pos.coords.latitude, pos.coords.longitude, data.latitude, data.longitude);
