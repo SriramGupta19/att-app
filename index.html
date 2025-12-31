@@ -6,15 +6,14 @@
     <title>NITC Attendance</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Specific styles for the login page */
-        .login-box { text-align: center; padding: 40px 20px; }
+        .login-box { text-align: center; padding: 50px 20px; }
         .google-btn {
-            background-color: #4285F4; color: white; border: none; padding: 12px 24px;
-            font-size: 16px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center;
+            background-color: #4285F4; color: white; border: none; padding: 15px 30px;
+            font-size: 16px; border-radius: 5px; cursor: pointer; font-weight: bold;
         }
         .google-btn:hover { background-color: #357ae8; }
-        .user-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 0.9em; color: #666; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .logout-link { color: #c0392b; cursor: pointer; text-decoration: underline; font-weight: bold; }
+        .user-header { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #ddd; font-size: 0.9em; color: #555; }
+        .logout { color: #c0392b; cursor: pointer; text-decoration: underline; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -25,17 +24,18 @@
         <div class="login-box">
             <h2>NITC Attendance</h2>
             <p>Please sign in with your college email.</p>
-            <p><strong>(@nitc.ac.in only)</strong></p>
+            <p style="color:#e67e22; font-weight:bold;">(@nitc.ac.in only)</p>
             <br>
             <button id="googleBtn" class="google-btn">Sign in with Google</button>
+            <p id="login-error" style="color:red; margin-top:20px; font-size:0.9em;"></p>
         </div>
     </div>
 
     <div id="view-app" class="hidden">
         
-        <div class="user-info">
-            <span id="user-email">loading...</span>
-            <span class="logout-link" id="logoutBtn">Logout</span>
+        <div class="user-header">
+            <span id="user-email">...</span>
+            <span class="logout" id="logoutBtn">Logout</span>
         </div>
 
         <div id="view-list">
@@ -69,7 +69,7 @@
         getDistanceFromLatLonInMeters, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged 
     } from './script.js';
 
-    // --- DOM ELEMENTS ---
+    // UI References
     const views = {
         login: document.getElementById('view-login'),
         app: document.getElementById('view-app'),
@@ -79,27 +79,28 @@
 
     let currentUser = null;
 
-    // --- 1. AUTHENTICATION LOGIC ---
+    // --- 1. AUTHENTICATION STATE OBSERVER ---
     onAuthStateChanged(auth, (user) => {
         if (user) {
-            // Check Domain
+            console.log("User detected:", user.email);
+
+            // Domain Check
             if (!user.email.endsWith('@nitc.ac.in')) {
-                alert("Access Denied: Please use an @nitc.ac.in email address.");
+                alert("ACCESS DENIED\n\nYou must use an @nitc.ac.in email address.");
                 signOut(auth);
                 return;
             }
 
-            // Login Success
+            // Setup User Session
             currentUser = user;
             document.getElementById('user-email').innerText = user.email;
             document.getElementById('display-name').innerText = user.displayName;
             
-            showApp(); // Switch to main app
-            
-            // Check if opened via QR Code (URL has ID)
+            showApp(); 
+
+            // Handle Direct QR Code Links
             const urlParams = new URLSearchParams(window.location.search);
             const urlEventId = urlParams.get('id');
-
             if (urlEventId) {
                 startAttendanceFlow(urlEventId);
             } else {
@@ -107,26 +108,46 @@
             }
 
         } else {
-            // Not Logged In
+            console.log("No user signed in.");
             showLogin();
         }
     });
 
-    // Login Button
+    // --- 2. BUTTON ACTIONS ---
+
+    // LOGIN
     document.getElementById('googleBtn').addEventListener('click', () => {
         const provider = new GoogleAuthProvider();
-        signInWithPopup(auth, provider).catch((error) => {
-            console.error("Login Failed", error);
-            alert("Login Failed: " + error.message);
+        signInWithPopup(auth, provider)
+            .then((result) => {
+                console.log("Login Success:", result.user.email);
+            })
+            .catch((error) => {
+                console.error("Login Error:", error);
+                document.getElementById('login-error').innerText = "Error: " + error.message;
+                alert("Login Failed: " + error.message);
+            });
+    });
+
+    // LOGOUT
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        signOut(auth).then(() => {
+            window.location.href = window.location.pathname; // Clear URL params
         });
     });
 
-    // Logout Button
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        signOut(auth).then(() => window.location.reload());
+    // BACK BUTTON
+    document.getElementById('backBtn').addEventListener('click', () => {
+        // Clear QR ID from URL without refreshing
+        const newUrl = window.location.pathname;
+        window.history.pushState({path: newUrl}, '', newUrl);
+
+        views.attendance.classList.add('hidden');
+        views.list.classList.remove('hidden');
+        loadLiveEvents(); // Refresh list
     });
 
-    // --- 2. NAVIGATION HELPER ---
+    // --- 3. HELPER FUNCTIONS ---
     function showLogin() {
         views.login.classList.remove('hidden');
         views.app.classList.add('hidden');
@@ -135,27 +156,14 @@
     function showApp() {
         views.login.classList.add('hidden');
         views.app.classList.remove('hidden');
-        views.list.classList.remove('hidden'); // Default to list
+        views.list.classList.remove('hidden');
         views.attendance.classList.add('hidden');
     }
 
-    // Fixed "Back" Button Logic
-    document.getElementById('backBtn').addEventListener('click', () => {
-        // 1. clear the URL parameter so refreshing doesn't send them back to the form
-        window.history.pushState({}, document.title, window.location.pathname);
-        
-        // 2. toggle views
-        views.attendance.classList.add('hidden');
-        views.list.classList.remove('hidden');
-        
-        // 3. reload list to ensure it's fresh (Fixes the "Loading..." bug)
-        loadLiveEvents(); 
-    });
-
-    // --- 3. FETCH EVENTS ---
+    // --- 4. FETCH EVENTS ---
     async function loadLiveEvents() {
         const listDiv = document.getElementById('live-events-list');
-        listDiv.innerHTML = "<p>Refreshing list...</p>"; // UI feedback
+        listDiv.innerHTML = "<p>Refreshing list...</p>";
 
         try {
             const q = query(collection(db, "events"), where("isActive", "==", true));
@@ -181,23 +189,19 @@
         }
     }
 
-    // --- 4. ATTENDANCE FLOW ---
+    // --- 5. ATTENDANCE LOGIC ---
     async function startAttendanceFlow(eventId) {
-        // UI Switch
         views.list.classList.add('hidden');
         views.attendance.classList.remove('hidden');
         
         const statusBox = document.getElementById('status-box');
         const formContainer = document.getElementById('form-container');
-        const title = document.getElementById('event-title');
         
-        // Reset UI
-        statusBox.innerText = "Loading Event...";
-        statusBox.className = ""; // clear colors
+        statusBox.innerText = "Loading Event Data...";
+        statusBox.className = ""; 
         formContainer.classList.add('hidden');
 
         try {
-            // Fetch Event Data
             const eventRef = doc(db, "events", eventId);
             const eventSnap = await getDoc(eventRef);
 
@@ -208,18 +212,19 @@
             }
 
             const eventData = eventSnap.data();
-            title.innerText = eventData.name;
+            document.getElementById('event-title').innerText = eventData.name;
 
             if (!eventData.isActive) {
-                statusBox.innerText = "This event is closed.";
+                statusBox.innerText = "This event is currently closed.";
                 statusBox.classList.add('status-closed');
                 return;
             }
 
             // GPS Check
-            statusBox.innerText = "Acquiring GPS...";
+            statusBox.innerText = "Checking GPS Location...";
+            
             if(!navigator.geolocation) {
-                statusBox.innerText = "GPS not enabled.";
+                statusBox.innerText = "GPS Error: Not Supported.";
                 return;
             }
 
@@ -234,51 +239,49 @@
                     statusBox.classList.add('status-active');
                     formContainer.classList.remove('hidden');
 
-                    // Submit Handler (One-time binding)
+                    // Setup Submit Button
                     const submitBtn = document.getElementById('submitBtn');
-                    // Clone button to remove old event listeners to prevent double submit
-                    const newBtn = submitBtn.cloneNode(true); 
+                    const newBtn = submitBtn.cloneNode(true);
                     submitBtn.parentNode.replaceChild(newBtn, submitBtn);
-                    
+
                     newBtn.addEventListener('click', async () => {
                         const sid = document.getElementById('studentID').value;
-                        if(!sid) return alert("Enter Student ID");
+                        if(!sid) return alert("Please enter your Student ID / Roll No");
 
-                        newBtn.innerText = "Submitting...";
+                        newBtn.innerText = "Marking Attendance...";
                         newBtn.disabled = true;
 
                         try {
                             await addDoc(collection(db, "attendees"), {
                                 eventId: eventId,
-                                name: currentUser.displayName, // Auto-filled from Google
-                                email: currentUser.email,      // Verified Email
+                                name: currentUser.displayName,
+                                email: currentUser.email,
                                 studentId: sid,
                                 timestamp: Timestamp.now()
                             });
-                            alert("Attendance Marked Successfully!");
-                            // Go back to list
-                            document.getElementById('backBtn').click();
+                            alert("Success! Attendance Marked.");
+                            document.getElementById('backBtn').click(); // Return to list
                         } catch(e) {
                             console.error(e);
-                            alert("Error submitting.");
+                            alert("Error submitting: " + e.message);
                             newBtn.disabled = false;
                         }
                     });
 
                 } else {
-                    statusBox.innerText = `❌ Too far (${Math.round(dist)}m). Move closer.`;
+                    statusBox.innerText = `❌ You are ${Math.round(dist)}m away. Move closer to the venue.`;
                     statusBox.classList.add('status-closed');
                 }
             }, (err) => {
-                statusBox.innerText = "Location access denied.";
+                statusBox.innerText = "GPS Access Denied. Allow location permission.";
+                statusBox.classList.add('status-closed');
             }, { enableHighAccuracy: true });
 
         } catch (e) {
             console.error(e);
-            statusBox.innerText = "System Error.";
+            statusBox.innerText = "Error: " + e.message;
         }
     }
 </script>
-
 </body>
 </html>
