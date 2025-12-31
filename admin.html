@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="style.css">
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 </head>
 <body>
@@ -20,15 +22,20 @@
     </div>
 
     <div id="view-create">
-        <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101)">
+        <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101 - Lecture 4)">
         <div id="map"></div>
-        <label>Radius: <span id="radiusVal">50</span>m</label>
+        <div class="flex-row">
+            <label>Geofence Radius: <strong id="radiusVal">50</strong> m</label>
+        </div>
         <input type="range" id="radiusSlider" min="10" max="500" value="50">
+        
         <button id="createBtn">Create Event</button>
 
-        <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px;">
+        <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px; background:#f0f0f0; padding:10px; border-radius:8px;">
+            <h3>Event Created!</h3>
             <canvas id="qr-code"></canvas>
-            <p>Event Created! Scan or share this code.</p>
+            <p style="font-size:0.9em; color:#666;">Scan or share the link below:</p>
+            <a id="share-link" href="#" target="_blank">Event Link</a>
         </div>
     </div>
 
@@ -37,36 +44,47 @@
     </div>
 
     <div id="view-details" class="hidden">
-        <button class="secondary" onclick="switchTab('history')">← Back to List</button>
-        <h2 id="detail-title">Event Name</h2>
-        
-        <div style="display:flex; align-items:center; margin-bottom:15px;">
-            <span>Accepting Responses: </span>
-            <label class="switch">
-                <input type="checkbox" id="toggle-active">
-                <span class="slider"></span>
-            </label>
+        <div class="flex-row">
+            <button class="secondary" style="width: auto;" onclick="switchTab('history')">← Back</button>
+            <div class="flex-row" style="margin:0;">
+                <span>Status: </span>
+                <label class="switch">
+                    <input type="checkbox" id="toggle-active">
+                    <span class="slider"></span>
+                </label>
+            </div>
         </div>
+        
+        <h2 id="detail-title">Event Name</h2>
+        <p style="color:#666; font-size:0.9em;">Total Attendees: <strong id="count-val">0</strong></p>
 
         <button onclick="downloadCSV()">Download Attendee List (CSV)</button>
         
         <h3>Attendees</h3>
-        <ul id="attendee-list"></ul>
+        <ul id="attendee-list" style="max-height: 200px; overflow-y: auto; background: #fafafa; padding: 10px; border: 1px solid #eee;"></ul>
+
+        <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
+        <button class="danger" onclick="deleteCurrentEvent()">Delete This Event</button>
     </div>
 </div>
 
 <script type="module">
-    import { db, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, Timestamp } from './script.js';
+    import { db, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, writeBatch, Timestamp } from './script.js';
 
-    // --- MAP SETUP (Leaflet) ---
+    // --- MAP SETUP ---
     let map, marker, circle;
-    // Initialize map immediately
-    map = L.map('map').setView([40.7128, -74.0060], 18);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    marker = L.marker([40.7128, -74.0060], {draggable: true}).addTo(map);
-    circle = L.circle([40.7128, -74.0060], { color: 'red', radius: 50 }).addTo(map);
+    // Default: New York (updates to user loc below)
+    let startLoc = [40.7128, -74.0060]; 
 
+    map = L.map('map').setView(startLoc, 18);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+    marker = L.marker(startLoc, {draggable: true}).addTo(map);
+    circle = L.circle(startLoc, { color: 'red', radius: 50 }).addTo(map);
+
+    // Sync Marker & Circle
     marker.on('drag', (e) => circle.setLatLng(e.target.getLatLng()));
+
+    // Get Admin Location
     if(navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(p => {
             const loc = [p.coords.latitude, p.coords.longitude];
@@ -74,16 +92,18 @@
         });
     }
 
-    // Radius Slider
+    // Slider UI
     document.getElementById('radiusSlider').addEventListener('input', (e) => {
         document.getElementById('radiusVal').innerText = e.target.value;
         circle.setRadius(e.target.value);
     });
 
-    // --- CREATE EVENT ---
+    // --- 1. CREATE EVENT ---
     document.getElementById('createBtn').addEventListener('click', async () => {
         const name = document.getElementById('eventName').value;
-        if(!name) return alert("Enter name");
+        if(!name) return alert("Please enter an event name");
+        
+        document.getElementById('createBtn').innerText = "Creating...";
         
         try {
             const docRef = await addDoc(collection(db, "events"), {
@@ -96,22 +116,40 @@
             });
 
             // Generate QR
-            const url = `${window.location.href.replace('admin.html', 'index.html')}?id=${docRef.id}`;
+            const baseUrl = window.location.href.replace('admin.html', 'index.html');
+            const url = `${baseUrl}?id=${docRef.id}`;
+            
             new QRious({ element: document.getElementById('qr-code'), value: url, size: 200 });
+            
+            const linkTag = document.getElementById('share-link');
+            linkTag.href = url;
+            linkTag.innerText = url;
+
             document.getElementById('qr-result').classList.remove('hidden');
-            alert("Event Created!");
-        } catch(e) { console.error(e); alert("Error"); }
+            document.getElementById('createBtn').innerText = "Create Event";
+            alert("Event Created Successfully!");
+
+        } catch(e) { 
+            console.error(e); 
+            alert("Error creating event"); 
+            document.getElementById('createBtn').innerText = "Create Event";
+        }
     });
 
-    // --- HISTORY & DETAILS ---
+    // --- 2. EVENT HISTORY ---
     window.loadHistory = async () => {
         const listDiv = document.getElementById('events-list');
-        listDiv.innerHTML = "Loading...";
+        listDiv.innerHTML = "<p>Loading events...</p>";
         
         const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
         
         listDiv.innerHTML = "";
+        if(snapshot.empty) {
+            listDiv.innerHTML = "<p>No events found.</p>";
+            return;
+        }
+
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
             const statusClass = data.isActive ? 'status-active' : 'status-closed';
@@ -120,7 +158,10 @@
             const div = document.createElement('div');
             div.className = 'event-card';
             div.innerHTML = `
-                <div><strong>${data.name}</strong></div>
+                <div>
+                    <div style="font-size:1.1em; font-weight:bold;">${data.name}</div>
+                    <div style="font-size:0.8em; color:#888;">${data.createdAt.toDate().toLocaleDateString()}</div>
+                </div>
                 <div class="status-badge ${statusClass}">${statusText}</div>
             `;
             div.onclick = () => openDetails(docSnap.id, data);
@@ -128,6 +169,7 @@
         });
     };
 
+    // --- 3. EVENT DETAILS & DELETE ---
     let currentEventId = null;
     let currentAttendees = [];
 
@@ -136,72 +178,96 @@
         switchTab('details');
         document.getElementById('detail-title').innerText = data.name;
         
-        // Set Toggle State
+        // Toggle Logic
         const toggle = document.getElementById('toggle-active');
         toggle.checked = data.isActive;
-        
-        // Add Listener for Toggle Change
         toggle.onclick = async () => {
             await updateDoc(doc(db, "events", id), { isActive: toggle.checked });
-            alert(`Event is now ${toggle.checked ? 'OPEN' : 'CLOSED'}`);
         };
 
         // Load Attendees
         const list = document.getElementById('attendee-list');
-        list.innerHTML = "Loading attendees...";
+        list.innerHTML = "<li>Loading...</li>";
         
         const q = query(collection(db, "attendees"), where("eventId", "==", id));
         const snap = await getDocs(q);
         
         list.innerHTML = "";
         currentAttendees = [];
-        
+        document.getElementById('count-val').innerText = snap.size;
+
         if (snap.empty) {
-            list.innerHTML = "<li>No attendees yet.</li>";
+            list.innerHTML = "<li style='list-style:none; color:#999;'>No attendees yet.</li>";
         } else {
             snap.forEach(d => {
                 const att = d.data();
                 currentAttendees.push(att);
                 const li = document.createElement('li');
-                // Format timestamp nicely
-                const time = att.timestamp ? att.timestamp.toDate().toLocaleTimeString() : 'N/A';
-                li.innerText = `${att.name} (${att.studentId || 'No ID'}) - ${time}`;
+                li.innerText = `${att.name} (${att.studentId}) - ${att.timestamp.toDate().toLocaleTimeString()}`;
                 list.appendChild(li);
             });
         }
     }
 
-    // --- CSV EXPORT ---
+    // --- DELETE LOGIC (NEW) ---
+    window.deleteCurrentEvent = async () => {
+        if(!currentEventId) return;
+
+        const confirmDelete = confirm("ARE YOU SURE?\n\nThis will permanently delete the event and all attendee records associated with it.\n\nThis action cannot be undone.");
+        
+        if (confirmDelete) {
+            try {
+                // We use a Batch to delete the event AND all its attendees together
+                const batch = writeBatch(db);
+
+                // 1. Delete the Event Document
+                const eventRef = doc(db, "events", currentEventId);
+                batch.delete(eventRef);
+
+                // 2. Find and Delete all Attendee Documents for this event
+                const q = query(collection(db, "attendees"), where("eventId", "==", currentEventId));
+                const attendeeSnaps = await getDocs(q);
+                
+                attendeeSnaps.forEach((attDoc) => {
+                    batch.delete(attDoc.ref);
+                });
+
+                // 3. Commit the changes
+                await batch.commit();
+
+                alert("Event and data deleted.");
+                switchTab('history');
+                loadHistory(); // Refresh list
+
+            } catch (e) {
+                console.error("Error deleting:", e);
+                alert("Error deleting event. Check console.");
+            }
+        }
+    };
+
     window.downloadCSV = () => {
         if(currentAttendees.length === 0) return alert("No data to download");
-        
         let csv = "Name,Student ID,Time\n";
         currentAttendees.forEach(row => {
-            const time = row.timestamp ? row.timestamp.toDate().toLocaleString() : '';
-            csv += `${row.name},${row.studentId},"${time}"\n`;
+            csv += `${row.name},${row.studentId},"${row.timestamp.toDate().toLocaleString()}"\n`;
         });
-        
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `attendance_${currentEventId}.csv`;
+        a.href = url; a.download = `attendance_${currentEventId}.csv`;
         a.click();
     }
 
-    // --- UI TABS ---
+    // --- TAB SWITCHER ---
     window.switchTab = (tabName) => {
-        document.getElementById('view-create').classList.add('hidden');
-        document.getElementById('view-history').classList.add('hidden');
-        document.getElementById('view-details').classList.add('hidden');
-        
-        // Reset Tabs Style
+        ['create', 'history', 'details'].forEach(t => document.getElementById(`view-${t}`).classList.add('hidden'));
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
 
         if(tabName === 'create') {
             document.getElementById('view-create').classList.remove('hidden');
             document.querySelector('.tab:nth-child(1)').classList.add('active');
-            setTimeout(() => map.invalidateSize(), 100); // Fix map rendering glitch
+            setTimeout(() => map.invalidateSize(), 200); // Fix map render issue
         } else if (tabName === 'history') {
             document.getElementById('view-history').classList.remove('hidden');
             document.querySelector('.tab:nth-child(2)').classList.add('active');
