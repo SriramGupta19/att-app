@@ -6,13 +6,14 @@ import { getFirestore, collection, addDoc, getDoc, doc, updateDoc, Timestamp } f
 // --- CONFIGURATION START ---
 // COPY THIS FROM YOUR FIREBASE CONSOLE
 const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
+  apiKey: "AIzaSyDcOx7keARxAM-W3aLoUzO1gDdfwsmp-PM",
+  authDomain: "attendance-app-33e78.firebaseapp.com",
+  projectId: "attendance-app-33e78",
+  storageBucket: "attendance-app-33e78.firebasestorage.app",
+  messagingSenderId: "947436572816",
+  appId: "1:947436572816:web:d98f3b04ed7b32f4b14815"
 };
+
 // --- CONFIGURATION END ---
 
 const app = initializeApp(firebaseConfig);
