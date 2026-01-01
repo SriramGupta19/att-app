@@ -4,16 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
+    
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    
     <style>
+        /* Admin Login Specific Styles */
         .login-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
-        .google-btn { background-color: #4285F4; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; margin-top: 20px; font-weight: bold; }
+        .google-btn { background-color: #4285F4; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 4px; cursor: pointer; margin-top: 20px; }
         .hidden { display: none !important; }
-        .alt-box { background: #eef2ff; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #c7d2fe; }
-        .alt-val { font-family: monospace; font-weight: bold; color: #4338ca; }
-        select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; }
+        
+        /* Event Type Selector */
+        select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; background: white; }
     </style>
 </head>
 <body>
@@ -54,27 +57,12 @@
             </div>
             <input type="range" id="radiusSlider" min="10" max="500" value="50">
             
-            <div class="alt-box">
-                <div class="flex-row">
-                    <label>⚠️ Floor/Elevation Lock</label>
-                    <label class="switch"><input type="checkbox" id="useAltitude"><span class="slider"></span></label>
-                </div>
-                <p style="font-size:0.85em; color:#666; margin-top:0;">Only enable if you are currently AT the venue floor.</p>
-                
-                <div id="alt-controls" class="hidden">
-                    <p>Captured Altitude: <span id="captured-alt" class="alt-val">Not Set</span></p>
-                    <p>Buffer: +/- <span id="v-buffer-val">1</span> meters</p>
-                    <input type="range" id="vBufferSlider" min="5" max="30" value="10">
-                    <button id="captureAltBtn" class="secondary" style="margin-top:5px;">📍 Capture My Elevation</button>
-                </div>
-            </div>
-
-            <button id="createBtn" style="margin-top: 20px;">Create Event & Generate QR</button>
+            <button id="createBtn">Create Event & Generate QR</button>
 
             <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px; background:#f9f9f9; padding:20px; border:2px dashed #ddd; border-radius:10px;">
                 <h3 style="margin-top:0; color:#27ae60;">✅ Event Created!</h3>
                 <img id="qr-image" src="" alt="Generating QR..." style="width: 200px; height: 200px; border: 1px solid #ccc; padding: 5px; background: white;">
-                <p style="margin-bottom:5px; margin-top:15px; font-weight:bold;">Share Link:</p>
+                <p style="margin-bottom:5px; margin-top:15px; font-weight:bold;">Scan or Share:</p>
                 <a id="share-link" href="#" target="_blank" style="word-break: break-all; color:#3498db; text-decoration:underline;">Link</a>
             </div>
         </div>
@@ -89,14 +77,17 @@
                 <button class="secondary" style="width: auto;" onclick="switchTab('history')">← Back</button>
                 <div style="display:flex; align-items:center;">
                     <span style="font-size:0.9em; margin-right:5px;">Accepting Responses:</span>
-                    <label class="switch"><input type="checkbox" id="toggle-active"><span class="slider"></span></label>
+                    <label class="switch">
+                        <input type="checkbox" id="toggle-active">
+                        <span class="slider"></span>
+                    </label>
                 </div>
             </div>
             <h2 id="detail-title">Event Name</h2>
             <p>Type: <strong id="detail-type">...</strong></p>
             <p>Total Attendees: <strong id="count-val">0</strong></p>
             <button onclick="downloadCSV()">Download CSV</button>
-            <ul id="attendee-list" style="max-height:200px; overflow-y:auto; background:#fafafa; border:1px solid #eee; padding:10px;"><li>Loading...</li></ul>
+            <ul id="attendee-list"><li>Loading...</li></ul>
             <button class="danger" onclick="deleteCurrentEvent()">Delete Event</button>
         </div>
     </div>
@@ -107,7 +98,8 @@
 
     // --- CONFIGURATION ---
     const ALLOWED_ADMIN = "maddula_m241070ee@nitc.ac.in";
-    let map, marker, circle, capturedAltitude = null;
+
+    let map, marker, circle;
 
     // --- AUTHENTICATION ---
     onAuthStateChanged(auth, (user) => {
@@ -115,10 +107,11 @@
             if (user.email === ALLOWED_ADMIN) {
                 document.getElementById('view-login').classList.add('hidden');
                 document.getElementById('view-dashboard').classList.remove('hidden');
-                setTimeout(initMap, 500); 
+                initMap(); // Init map only after login
             } else {
-                alert("Access Denied: You are not the authorized admin.");
+                alert("Access Denied: You are not the administrator.");
                 signOut(auth);
+                document.getElementById('auth-error').innerText = "Access Denied: Unauthorized Email";
             }
         } else {
             document.getElementById('view-login').classList.remove('hidden');
@@ -126,15 +119,20 @@
         }
     });
 
-    document.getElementById('loginBtn').addEventListener('click', () => signInWithPopup(auth, new GoogleAuthProvider()));
-    document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth).then(() => window.location.reload()));
+    document.getElementById('loginBtn').addEventListener('click', () => {
+        signInWithPopup(auth, new GoogleAuthProvider()).catch(e => alert(e.message));
+    });
 
-    // --- MAP LOGIC ---
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        signOut(auth).then(() => window.location.reload());
+    });
+
+    // --- MAP INITIALIZATION ---
     function initMap() {
-        if(map) return;
-        let startLoc = [11.3216, 75.9336]; // Default to NIT Calicut approx loc
-        map = L.map('map').setView(startLoc, 16);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        if(map) return; // Prevent re-init
+        let startLoc = [40.7128, -74.0060]; 
+        map = L.map('map').setView(startLoc, 18);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
         marker = L.marker(startLoc, {draggable: true}).addTo(map);
         circle = L.circle(startLoc, { color: 'red', radius: 50 }).addTo(map);
         marker.on('drag', (e) => circle.setLatLng(e.target.getLatLng()));
@@ -147,143 +145,163 @@
         }
     }
 
+    // Slider UI Update
     document.getElementById('radiusSlider').addEventListener('input', (e) => {
         document.getElementById('radiusVal').innerText = e.target.value;
         circle.setRadius(e.target.value);
     });
 
-    // --- ALTITUDE LOGIC ---
-    document.getElementById('useAltitude').addEventListener('change', (e) => {
-        const controls = document.getElementById('alt-controls');
-        if(e.target.checked) controls.classList.remove('hidden');
-        else { controls.classList.add('hidden'); capturedAltitude = null; }
-    });
-
-    document.getElementById('captureAltBtn').addEventListener('click', () => {
-        document.getElementById('captureAltBtn').innerText = "Reading Sensors...";
-        navigator.geolocation.getCurrentPosition(pos => {
-            if (pos.coords.altitude === null) {
-                alert("Your device hardware cannot detect altitude.");
-                return;
-            }
-            capturedAltitude = pos.coords.altitude;
-            document.getElementById('captured-alt').innerText = `${Math.round(capturedAltitude)}m`;
-            document.getElementById('captureAltBtn').innerText = "✅ Captured";
-        }, err => alert("GPS Error"), { enableHighAccuracy: true });
-    });
-
-    // --- CREATE EVENT ---
+    // --- MAIN CREATE FUNCTION ---
     document.getElementById('createBtn').addEventListener('click', async () => {
         const name = document.getElementById('eventName').value;
-        const type = document.getElementById('eventType').value;
-        const useAlt = document.getElementById('useAltitude').checked;
+        const type = document.getElementById('eventType').value; // Get Type
         const btn = document.getElementById('createBtn');
+        const qrContainer = document.getElementById('qr-result');
+        const qrImage = document.getElementById('qr-image');
+        const shareLink = document.getElementById('share-link');
 
-        if(!name) return alert("Enter Event Name");
-        if(useAlt && capturedAltitude === null) return alert("Please capture altitude or disable the lock.");
-
-        btn.innerText = "Creating..."; btn.disabled = true;
+        if(!name) return alert("Please enter an event name.");
+        
+        btn.innerText = "Creating...";
+        btn.disabled = true;
 
         try {
             const docRef = await addDoc(collection(db, "events"), {
                 name: name,
-                eventType: type,
+                eventType: type, // Save Type
                 latitude: marker.getLatLng().lat,
                 longitude: marker.getLatLng().lng,
                 radius: parseInt(document.getElementById('radiusSlider').value),
-                checkAltitude: useAlt,
-                targetAltitude: capturedAltitude,
-                altitudeBuffer: parseInt(document.getElementById('vBufferSlider').value),
                 isActive: true,
                 createdAt: Timestamp.now()
             });
 
-            // QR Generation
+            // Generate URL
             const baseUrl = window.location.href.replace('admin.html', 'index.html');
             const finalUrl = `${baseUrl}?id=${docRef.id}`;
             const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(finalUrl)}`;
             
-            document.getElementById('qr-image').src = qrApiUrl;
-            document.getElementById('share-link').href = finalUrl;
-            document.getElementById('share-link').innerText = finalUrl;
-            document.getElementById('qr-result').classList.remove('hidden');
+            qrImage.src = qrApiUrl;
+            shareLink.href = finalUrl;
+            shareLink.innerText = finalUrl;
+            qrContainer.classList.remove('hidden');
             
-            btn.innerText = "Create Another"; btn.disabled = false;
-        } catch(e) { console.error(e); alert("Error"); btn.disabled = false; }
+            btn.innerText = "Create Another Event";
+            btn.disabled = false;
+            document.getElementById('eventName').value = ""; 
+
+        } catch(e) {
+            console.error("Error", e);
+            alert("Error: " + e.message);
+            btn.innerText = "Create Event";
+            btn.disabled = false;
+        }
     });
 
-    // --- TABS & HISTORY ---
+    // --- TAB SWITCHER ---
     window.switchTab = (tabName) => {
         ['create', 'history', 'details'].forEach(t => document.getElementById(`view-${t}`).classList.add('hidden'));
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.getElementById(`view-${tabName}`).classList.remove('hidden');
-        if(tabName === 'create') setTimeout(() => map.invalidateSize(), 200);
+
+        if(tabName === 'create') {
+            document.getElementById('view-create').classList.remove('hidden');
+            document.getElementById('tab-create').classList.add('active');
+            setTimeout(() => map.invalidateSize(), 200);
+        } else if (tabName === 'history') {
+            document.getElementById('view-history').classList.remove('hidden');
+            document.getElementById('tab-history').classList.add('active');
+        } else if (tabName === 'details') {
+            document.getElementById('view-details').classList.remove('hidden');
+        }
     }
 
+    // --- HISTORY LOGIC ---
     window.loadHistory = async () => {
         const listDiv = document.getElementById('events-list');
         listDiv.innerHTML = "Loading...";
         const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
+        
         listDiv.innerHTML = "";
-        if(snapshot.empty) { listDiv.innerHTML = "No events."; return; }
+        if(snapshot.empty) listDiv.innerHTML = "No events found.";
 
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
-            const badge = data.eventType === 'internal' 
-                ? '<span style="background:#e0f2fe; color:#0369a1; padding:2px 5px; border-radius:4px; font-size:0.7em;">Internal</span>' 
-                : '<span style="background:#f3e8ff; color:#7e22ce; padding:2px 5px; border-radius:4px; font-size:0.7em;">External</span>';
-            
+            // Determine Tag Color
+            const typeBadge = data.eventType === 'internal' 
+                ? '<span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-size:0.8em;">Internal</span>' 
+                : '<span style="background:#f3e8ff; color:#7e22ce; padding:2px 6px; border-radius:4px; font-size:0.8em;">External</span>';
+
             const div = document.createElement('div');
             div.className = 'event-card';
-            div.innerHTML = `<div><b>${data.name}</b> ${badge}<br><small>${data.createdAt.toDate().toLocaleDateString()}</small></div>
-                             <div class="status-badge ${data.isActive?'status-active':'status-closed'}">${data.isActive?'Live':'Closed'}</div>`;
+            div.innerHTML = `
+                <div>
+                    <b>${data.name}</b> ${typeBadge}<br>
+                    <small>${data.createdAt.toDate().toLocaleDateString()}</small>
+                </div>
+                <div class="status-badge ${data.isActive?'status-active':'status-closed'}">${data.isActive?'Live':'Closed'}</div>`;
             div.onclick = () => openDetails(docSnap.id, data);
             listDiv.appendChild(div);
         });
     };
 
-    let currentEventId = null; let currentAttendees = [];
+    // --- DETAILS LOGIC ---
+    let currentEventId = null;
+    let currentAttendees = [];
+
     async function openDetails(id, data) {
-        currentEventId = id; switchTab('details');
+        currentEventId = id;
+        switchTab('details');
         document.getElementById('detail-title').innerText = data.name;
-        document.getElementById('detail-type').innerText = data.eventType;
+        document.getElementById('detail-type').innerText = data.eventType === 'internal' ? "Internal (NITC Only)" : "External (Open)";
         
         const toggle = document.getElementById('toggle-active');
-        const newToggle = toggle.cloneNode(true); toggle.parentNode.replaceChild(newToggle, toggle);
+        const newToggle = toggle.cloneNode(true); 
+        toggle.parentNode.replaceChild(newToggle, toggle);
         newToggle.checked = data.isActive;
-        newToggle.addEventListener('change', async (e) => updateDoc(doc(db, "events", id), { isActive: e.target.checked }));
+        newToggle.addEventListener('change', async (e) => {
+            await updateDoc(doc(db, "events", id), { isActive: e.target.checked });
+        });
 
-        const list = document.getElementById('attendee-list'); list.innerHTML = "Loading...";
+        const list = document.getElementById('attendee-list');
+        list.innerHTML = "Loading...";
         const q = query(collection(db, "attendees"), where("eventId", "==", id));
         const snap = await getDocs(q);
-        list.innerHTML = ""; currentAttendees = [];
-        document.getElementById('count-val').innerText = snap.size;
         
-        snap.forEach(d => {
-            const att = d.data(); currentAttendees.push(att);
+        list.innerHTML = "";
+        currentAttendees = [];
+        document.getElementById('count-val').innerText = snap.size;
+
+        if(snap.empty) list.innerHTML = "<li>No attendees.</li>";
+        else snap.forEach(d => {
+            const att = d.data();
+            currentAttendees.push(att);
             const li = document.createElement('li');
-            li.innerText = `${att.name} (${att.studentId}) - ${att.timestamp.toDate().toLocaleTimeString()}`;
+            li.innerText = `${att.name} (${att.studentId || 'Ext'}) - ${att.timestamp.toDate().toLocaleTimeString()}`;
             list.appendChild(li);
         });
     }
 
     window.downloadCSV = () => {
-        if(!currentAttendees.length) return alert("No data");
+        if(!currentAttendees.length) return alert("No data.");
         let csv = "Name,Email,ID,Time\n";
         currentAttendees.forEach(row => csv += `"${row.name}",${row.email},${row.studentId},"${row.timestamp.toDate().toLocaleString()}"\n`);
-        const a = document.createElement('a'); a.href = window.URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-        a.download = "attendance.csv"; a.click();
+        const a = document.createElement('a');
+        a.href = window.URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+        a.download = `attendance.csv`;
+        a.click();
     };
 
     window.deleteCurrentEvent = async () => {
-        if(!confirm("Delete event?")) return;
+        if(!currentEventId || !confirm("Permanently delete this event?")) return;
         const batch = writeBatch(db);
         batch.delete(doc(db, "events", currentEventId));
         const snaps = await getDocs(query(collection(db, "attendees"), where("eventId", "==", currentEventId)));
         snaps.forEach(s => batch.delete(s.ref));
         await batch.commit();
-        alert("Deleted"); switchTab('history'); loadHistory();
+        alert("Deleted.");
+        switchTab('history');
+        loadHistory();
     };
 </script>
 </body>
