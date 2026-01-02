@@ -10,13 +10,20 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <style>
-        /* Admin Login Specific Styles */
+        /* Admin Login Styles */
         .login-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
         .google-btn { background-color: #4285F4; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 4px; cursor: pointer; margin-top: 20px; }
         .hidden { display: none !important; }
         
         /* Event Type Selector */
         select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; background: white; }
+
+        /* Mini Map for Details View */
+        #details-map { height: 250px; width: 100%; border-radius: 8px; border: 1px solid #ccc; margin-top: 10px; z-index: 0; }
+        
+        /* Edit Controls */
+        .edit-controls { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #eee; }
+        .disabled-input { background-color: #f0f0f0; color: #666; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -83,11 +90,37 @@
                     </label>
                 </div>
             </div>
-            <h2 id="detail-title">Event Name</h2>
-            <p>Type: <strong id="detail-type">...</strong></p>
+
+            <div class="edit-controls">
+                <div class="flex-row">
+                    <h3 style="margin:0;">Event Settings</h3>
+                    <button id="editBtn" style="width:auto; padding:5px 15px; background:#f39c12;">✏️ Edit</button>
+                    <button id="saveBtn" class="hidden" style="width:auto; padding:5px 15px; background:#27ae60;">💾 Save</button>
+                </div>
+
+                <label>Event Name:</label>
+                <input type="text" id="edit-name" disabled class="disabled-input">
+
+                <label>Event Type:</label>
+                <select id="edit-type" disabled class="disabled-input">
+                    <option value="internal">Internal (NITC Only)</option>
+                    <option value="external">External (Open)</option>
+                </select>
+
+                <label>Geofence Location (Drag pin to update):</label>
+                <div id="details-map"></div> <div class="flex-row" style="margin-top:10px;">
+                    <label>Radius: <strong id="edit-radius-val">50</strong> m</label>
+                </div>
+                <input type="range" id="edit-radius" min="10" max="500" value="50" disabled>
+            </div>
+
+            <hr>
+
+            <h3>Stats & Data</h3>
             <p>Total Attendees: <strong id="count-val">0</strong></p>
             <button onclick="downloadCSV()">Download CSV</button>
             <ul id="attendee-list"><li>Loading...</li></ul>
+            
             <button class="danger" onclick="deleteCurrentEvent()">Delete Event</button>
         </div>
     </div>
@@ -96,47 +129,37 @@
 <script type="module">
     import { db, auth, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, writeBatch, Timestamp, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from './script.js';
 
-    // --- CONFIGURATION ---
     const ALLOWED_ADMIN = "maddula_m241070ee@nitc.ac.in";
+    let map, marker, circle; // Main Create Map
+    let detailsMap, detailsMarker, detailsCircle; // Mini Edit Map
 
-    let map, marker, circle;
-
-    // --- AUTHENTICATION ---
+    // --- AUTH ---
     onAuthStateChanged(auth, (user) => {
-        if (user) {
-            if (user.email === ALLOWED_ADMIN) {
-                document.getElementById('view-login').classList.add('hidden');
-                document.getElementById('view-dashboard').classList.remove('hidden');
-                initMap(); // Init map only after login
-            } else {
-                alert("Access Denied: You are not the administrator.");
-                signOut(auth);
-                document.getElementById('auth-error').innerText = "Access Denied: Unauthorized Email";
-            }
+        if (user && user.email === ALLOWED_ADMIN) {
+            document.getElementById('view-login').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            setTimeout(initCreateMap, 500);
+        } else if (user) {
+            alert("Access Denied"); signOut(auth);
         } else {
             document.getElementById('view-login').classList.remove('hidden');
             document.getElementById('view-dashboard').classList.add('hidden');
         }
     });
 
-    document.getElementById('loginBtn').addEventListener('click', () => {
-        signInWithPopup(auth, new GoogleAuthProvider()).catch(e => alert(e.message));
-    });
+    document.getElementById('loginBtn').addEventListener('click', () => signInWithPopup(auth, new GoogleAuthProvider()));
+    document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth).then(() => window.location.reload()));
 
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        signOut(auth).then(() => window.location.reload());
-    });
-
-    // --- MAP INITIALIZATION ---
-    function initMap() {
-        if(map) return; // Prevent re-init
+    // --- CREATE MAP ---
+    function initCreateMap() {
+        if(map) return;
         let startLoc = [40.7128, -74.0060]; 
         map = L.map('map').setView(startLoc, 18);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         marker = L.marker(startLoc, {draggable: true}).addTo(map);
         circle = L.circle(startLoc, { color: 'red', radius: 50 }).addTo(map);
         marker.on('drag', (e) => circle.setLatLng(e.target.getLatLng()));
-
+        
         if(navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(p => {
                 const loc = [p.coords.latitude, p.coords.longitude];
@@ -144,144 +167,175 @@
             });
         }
     }
-
-    // Slider UI Update
+    
     document.getElementById('radiusSlider').addEventListener('input', (e) => {
         document.getElementById('radiusVal').innerText = e.target.value;
         circle.setRadius(e.target.value);
     });
 
-    // --- MAIN CREATE FUNCTION ---
+    // --- CREATE LOGIC ---
     document.getElementById('createBtn').addEventListener('click', async () => {
         const name = document.getElementById('eventName').value;
-        const type = document.getElementById('eventType').value; // Get Type
-        const btn = document.getElementById('createBtn');
-        const qrContainer = document.getElementById('qr-result');
-        const qrImage = document.getElementById('qr-image');
-        const shareLink = document.getElementById('share-link');
-
-        if(!name) return alert("Please enter an event name.");
+        const type = document.getElementById('eventType').value;
+        if(!name) return alert("Enter Name");
         
-        btn.innerText = "Creating...";
-        btn.disabled = true;
-
         try {
             const docRef = await addDoc(collection(db, "events"), {
-                name: name,
-                eventType: type, // Save Type
-                latitude: marker.getLatLng().lat,
-                longitude: marker.getLatLng().lng,
+                name: name, eventType: type,
+                latitude: marker.getLatLng().lat, longitude: marker.getLatLng().lng,
                 radius: parseInt(document.getElementById('radiusSlider').value),
-                isActive: true,
-                createdAt: Timestamp.now()
+                isActive: true, createdAt: Timestamp.now()
             });
 
-            // Generate URL
             const baseUrl = window.location.href.replace('admin.html', 'index.html');
-            const finalUrl = `${baseUrl}?id=${docRef.id}`;
-            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(finalUrl)}`;
-            
-            qrImage.src = qrApiUrl;
-            shareLink.href = finalUrl;
-            shareLink.innerText = finalUrl;
-            qrContainer.classList.remove('hidden');
-            
-            btn.innerText = "Create Another Event";
-            btn.disabled = false;
-            document.getElementById('eventName').value = ""; 
-
-        } catch(e) {
-            console.error("Error", e);
-            alert("Error: " + e.message);
-            btn.innerText = "Create Event";
-            btn.disabled = false;
-        }
+            const url = `${baseUrl}?id=${docRef.id}`;
+            document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+            document.getElementById('share-link').href = url;
+            document.getElementById('share-link').innerText = url;
+            document.getElementById('qr-result').classList.remove('hidden');
+        } catch(e) { alert("Error: " + e.message); }
     });
 
-    // --- TAB SWITCHER ---
-    window.switchTab = (tabName) => {
-        ['create', 'history', 'details'].forEach(t => document.getElementById(`view-${t}`).classList.add('hidden'));
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-
-        if(tabName === 'create') {
-            document.getElementById('view-create').classList.remove('hidden');
-            document.getElementById('tab-create').classList.add('active');
-            setTimeout(() => map.invalidateSize(), 200);
-        } else if (tabName === 'history') {
-            document.getElementById('view-history').classList.remove('hidden');
-            document.getElementById('tab-history').classList.add('active');
-        } else if (tabName === 'details') {
-            document.getElementById('view-details').classList.remove('hidden');
-        }
-    }
-
-    // --- HISTORY LOGIC ---
+    // --- HISTORY LIST ---
     window.loadHistory = async () => {
         const listDiv = document.getElementById('events-list');
         listDiv.innerHTML = "Loading...";
         const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
-        const snapshot = await getDocs(q);
-        
+        const snap = await getDocs(q);
         listDiv.innerHTML = "";
-        if(snapshot.empty) listDiv.innerHTML = "No events found.";
-
-        snapshot.forEach(docSnap => {
+        
+        snap.forEach(docSnap => {
             const data = docSnap.data();
-            // Determine Tag Color
-            const typeBadge = data.eventType === 'internal' 
-                ? '<span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-size:0.8em;">Internal</span>' 
-                : '<span style="background:#f3e8ff; color:#7e22ce; padding:2px 6px; border-radius:4px; font-size:0.8em;">External</span>';
-
+            const typeBadge = data.eventType === 'internal' ? '🔒 Internal' : '🌍 External';
             const div = document.createElement('div');
             div.className = 'event-card';
-            div.innerHTML = `
-                <div>
-                    <b>${data.name}</b> ${typeBadge}<br>
-                    <small>${data.createdAt.toDate().toLocaleDateString()}</small>
-                </div>
-                <div class="status-badge ${data.isActive?'status-active':'status-closed'}">${data.isActive?'Live':'Closed'}</div>`;
+            div.innerHTML = `<div><b>${data.name}</b> <small>${typeBadge}</small></div>
+                             <div class="status-badge ${data.isActive?'status-active':'status-closed'}">${data.isActive?'Live':'Closed'}</div>`;
             div.onclick = () => openDetails(docSnap.id, data);
             listDiv.appendChild(div);
         });
     };
 
-    // --- DETAILS LOGIC ---
+    // --- DETAILS & EDIT LOGIC ---
     let currentEventId = null;
     let currentAttendees = [];
 
     async function openDetails(id, data) {
         currentEventId = id;
         switchTab('details');
-        document.getElementById('detail-title').innerText = data.name;
-        document.getElementById('detail-type').innerText = data.eventType === 'internal' ? "Internal (NITC Only)" : "External (Open)";
         
-        const toggle = document.getElementById('toggle-active');
-        const newToggle = toggle.cloneNode(true); 
-        toggle.parentNode.replaceChild(newToggle, toggle);
-        newToggle.checked = data.isActive;
-        newToggle.addEventListener('change', async (e) => {
-            await updateDoc(doc(db, "events", id), { isActive: e.target.checked });
-        });
+        // 1. Fill Data
+        const nameInput = document.getElementById('edit-name');
+        const typeInput = document.getElementById('edit-type');
+        const radInput = document.getElementById('edit-radius');
+        
+        nameInput.value = data.name;
+        typeInput.value = data.eventType;
+        radInput.value = data.radius;
+        document.getElementById('edit-radius-val').innerText = data.radius;
 
+        // 2. Setup Toggle
+        const toggle = document.getElementById('toggle-active');
+        const newToggle = toggle.cloneNode(true); toggle.parentNode.replaceChild(newToggle, toggle);
+        newToggle.checked = data.isActive;
+        newToggle.addEventListener('change', async (e) => updateDoc(doc(db, "events", id), { isActive: e.target.checked }));
+
+        // 3. Setup Mini Map (The Screen Grab)
+        if(detailsMap) detailsMap.remove(); // Clear old map instance
+        detailsMap = L.map('details-map').setView([data.latitude, data.longitude], 18);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(detailsMap);
+        
+        detailsMarker = L.marker([data.latitude, data.longitude], {draggable: false}).addTo(detailsMap);
+        detailsCircle = L.circle([data.latitude, data.longitude], { color: 'blue', radius: data.radius }).addTo(detailsMap);
+
+        // Sync Marker & Circle in Edit Map
+        detailsMarker.on('drag', (e) => detailsCircle.setLatLng(e.target.getLatLng()));
+
+        // 4. Disable Editing Initially
+        disableEditing(true);
+
+        // 5. Load Attendees
+        loadAttendees(id);
+    }
+
+    // --- EDIT BUTTONS ---
+    const editBtn = document.getElementById('editBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    
+    editBtn.onclick = () => {
+        disableEditing(false); // Enable inputs
+        editBtn.classList.add('hidden');
+        saveBtn.classList.remove('hidden');
+        detailsMarker.dragging.enable(); // Allow moving pin
+    };
+
+    saveBtn.onclick = async () => {
+        saveBtn.innerText = "Saving...";
+        try {
+            const newLat = detailsMarker.getLatLng().lat;
+            const newLng = detailsMarker.getLatLng().lng;
+            const newRad = parseInt(document.getElementById('edit-radius').value);
+            const newName = document.getElementById('edit-name').value;
+            const newType = document.getElementById('edit-type').value;
+
+            await updateDoc(doc(db, "events", currentEventId), {
+                name: newName,
+                eventType: newType,
+                latitude: newLat,
+                longitude: newLng,
+                radius: newRad
+            });
+
+            alert("Event Updated!");
+            disableEditing(true);
+            editBtn.classList.remove('hidden');
+            saveBtn.classList.add('hidden');
+            saveBtn.innerText = "💾 Save";
+            detailsMarker.dragging.disable();
+            
+        } catch(e) { alert("Error saving"); }
+    };
+
+    function disableEditing(disable) {
+        const inputs = ['edit-name', 'edit-type', 'edit-radius'];
+        inputs.forEach(id => {
+            const el = document.getElementById(id);
+            el.disabled = disable;
+            if(disable) el.classList.add('disabled-input');
+            else el.classList.remove('disabled-input');
+        });
+    }
+
+    document.getElementById('edit-radius').addEventListener('input', (e) => {
+        document.getElementById('edit-radius-val').innerText = e.target.value;
+        if(detailsCircle) detailsCircle.setRadius(e.target.value);
+    });
+
+    async function loadAttendees(id) {
         const list = document.getElementById('attendee-list');
         list.innerHTML = "Loading...";
         const q = query(collection(db, "attendees"), where("eventId", "==", id));
         const snap = await getDocs(q);
-        
-        list.innerHTML = "";
-        currentAttendees = [];
+        list.innerHTML = ""; currentAttendees = [];
         document.getElementById('count-val').innerText = snap.size;
-
-        if(snap.empty) list.innerHTML = "<li>No attendees.</li>";
-        else snap.forEach(d => {
-            const att = d.data();
-            currentAttendees.push(att);
+        
+        snap.forEach(d => {
+            const att = d.data(); currentAttendees.push(att);
             const li = document.createElement('li');
             li.innerText = `${att.name} (${att.studentId || 'Ext'}) - ${att.timestamp.toDate().toLocaleTimeString()}`;
             list.appendChild(li);
         });
     }
 
+    window.switchTab = (tabName) => {
+        ['create', 'history', 'details'].forEach(t => document.getElementById(`view-${t}`).classList.add('hidden'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(`view-${tabName}`).classList.remove('hidden');
+        if(tabName === 'create') setTimeout(() => map.invalidateSize(), 200);
+        if(tabName === 'details' && detailsMap) setTimeout(() => detailsMap.invalidateSize(), 200);
+    }
+    
+    // ... (Keep existing downloadCSV and deleteCurrentEvent functions) ...
     window.downloadCSV = () => {
         if(!currentAttendees.length) return alert("No data.");
         let csv = "Name,Email,ID,Time\n";
@@ -293,7 +347,7 @@
     };
 
     window.deleteCurrentEvent = async () => {
-        if(!currentEventId || !confirm("Permanently delete this event?")) return;
+        if(!currentEventId || !confirm("Delete event?")) return;
         const batch = writeBatch(db);
         batch.delete(doc(db, "events", currentEventId));
         const snaps = await getDocs(query(collection(db, "attendees"), where("eventId", "==", currentEventId)));
