@@ -2,28 +2,201 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Admin Dashboard</title>
     
-    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <style>
-        /* Admin Login Styles */
-        .login-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
-        .google-btn { background-color: #4285F4; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 4px; cursor: pointer; margin-top: 20px; }
-        .hidden { display: none !important; }
-        
-        /* Event Type Selector */
-        select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; background: white; }
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
 
-        /* Mini Map for Details View */
-        #details-map { height: 250px; width: 100%; border-radius: 8px; border: 1px solid #ccc; margin-top: 10px; z-index: 0; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
-        /* Edit Controls */
-        .edit-controls { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #eee; }
-        .disabled-input { background-color: #f0f0f0; color: #666; cursor: not-allowed; }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0;
+            background-color: var(--bg);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px; /* Wider for desktop dashboard */
+            margin: 0 auto;
+            height: 100%;
+            display: flex; flex-direction: column;
+            background: var(--bg);
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- LOGIN SCREEN --- */
+        .login-wrapper {
+            flex: 1; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            padding: 20px; background: var(--surface);
+        }
+        .admin-badge {
+            background: #e0e7ff; color: var(--primary);
+            padding: 6px 12px; border-radius: 20px;
+            font-size: 0.8rem; font-weight: 700; margin-bottom: 15px;
+        }
+        
+        .google-btn {
+            background: var(--primary); color: white;
+            border: none; padding: 14px 24px; border-radius: 12px;
+            font-weight: 600; font-size: 1rem; cursor: pointer;
+            box-shadow: var(--shadow); transition: transform 0.1s;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .google-btn:active { transform: scale(0.98); }
+
+        /* --- DASHBOARD HEADER --- */
+        .header {
+            background: var(--surface);
+            padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 50;
+        }
+        .header h1 { margin: 0; font-size: 1.25rem; }
+        
+        .logout-btn {
+            background: #fee2e2; color: var(--danger);
+            border: none; padding: 8px 16px; border-radius: 8px;
+            font-weight: 600; cursor: pointer; font-size: 0.85rem;
+        }
+
+        /* --- TABS --- */
+        .tabs {
+            display: flex; background: var(--surface);
+            padding: 0 20px; border-bottom: 1px solid var(--border);
+        }
+        .tab {
+            padding: 15px 20px; cursor: pointer; font-weight: 600;
+            color: var(--text-sub); position: relative;
+            flex: 1; text-align: center; transition: color 0.2s;
+        }
+        .tab.active { color: var(--primary); }
+        .tab.active::after {
+            content: ''; position: absolute; bottom: 0; left: 0; width: 100%;
+            height: 3px; background: var(--primary); border-radius: 3px 3px 0 0;
+        }
+
+        /* --- CONTENT AREA --- */
+        .view-content {
+            padding: 20px; flex: 1; overflow-y: auto;
+        }
+
+        /* --- FORMS & INPUTS --- */
+        input[type="text"], select {
+            width: 100%; padding: 14px; margin-bottom: 15px;
+            border: 1px solid var(--border); border-radius: 10px;
+            font-size: 1rem; font-family: inherit;
+            background: white; color: var(--text-main);
+        }
+        input:focus, select:focus { outline: 2px solid var(--primary); border-color: transparent; }
+        
+        label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: var(--text-sub); }
+
+        .action-btn {
+            width: 100%; padding: 16px; border: none; border-radius: 12px;
+            font-weight: 700; font-size: 1rem; cursor: pointer;
+            background: var(--primary); color: white; margin-top: 10px;
+            box-shadow: var(--shadow);
+        }
+
+        /* --- MAP CONTAINER --- */
+        #map, #details-map {
+            height: 300px; width: 100%; border-radius: 12px;
+            border: 2px solid var(--border); margin-bottom: 20px; z-index: 0;
+        }
+
+        /* --- SLIDER --- */
+        .slider-container {
+            background: white; padding: 15px; border-radius: 12px;
+            border: 1px solid var(--border); margin-bottom: 20px;
+        }
+        input[type="range"] { width: 100%; margin-top: 10px; }
+
+        /* --- CARDS (HISTORY) --- */
+        .event-card {
+            background: white; padding: 16px; border-radius: 12px;
+            margin-bottom: 12px; border: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .event-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+        
+        .badge {
+            font-size: 0.75rem; padding: 4px 8px; border-radius: 6px;
+            font-weight: 700; text-transform: uppercase;
+        }
+        .badge-live { background: #dcfce7; color: #166534; }
+        .badge-closed { background: #fee2e2; color: #991b1b; }
+        .badge-int { background: #e0f2fe; color: #075985; margin-left: 5px; }
+        .badge-ext { background: #f3e8ff; color: #6b21a8; margin-left: 5px; }
+
+        /* --- EDIT CONTROLS --- */
+        .edit-panel {
+            background: white; padding: 20px; border-radius: 16px;
+            border: 1px solid var(--border); margin-bottom: 20px;
+        }
+        .panel-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border);
+        }
+        .edit-btn { background: #f59e0b; color: white; padding: 8px 16px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; }
+        .save-btn { background: var(--success); color: white; padding: 8px 16px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; }
+        
+        .disabled-input { background-color: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+        /* --- TOGGLE SWITCH --- */
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--success); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        /* --- QR RESULT --- */
+        #qr-result {
+            background: white; padding: 25px; border-radius: 16px;
+            border: 2px dashed var(--border); text-align: center; margin-top: 25px;
+        }
+        #qr-image { width: 180px; height: 180px; border-radius: 8px; border: 1px solid var(--border); padding: 10px; }
+        
+        /* --- UTILS --- */
+        .danger-btn { background: var(--danger); color: white; width: 100%; padding: 14px; border-radius: 10px; border: none; font-weight: 700; margin-top: 30px; cursor: pointer; }
+        .secondary-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-main); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+
+        /* --- ATTENDEE LIST --- */
+        #attendee-list {
+            list-style: none; padding: 0; margin: 0;
+            max-height: 300px; overflow-y: auto;
+            border: 1px solid var(--border); border-radius: 10px;
+        }
+        #attendee-list li {
+            padding: 12px 15px; border-bottom: 1px solid var(--border);
+            font-size: 0.9rem; display: flex; justify-content: space-between;
+        }
+        #attendee-list li:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
@@ -31,97 +204,114 @@
 <div class="container">
 
     <div id="view-login" class="login-wrapper">
-        <h1>Admin Portal</h1>
-        <p>Restricted Access</p>
-        <button id="loginBtn" class="google-btn">Sign in with Google</button>
-        <p id="auth-error" style="color:red; margin-top:15px; font-weight:bold;"></p>
+        <div class="admin-badge">ADMIN PORTAL</div>
+        <h1 style="margin:0 0 10px 0;">Dashboard Access</h1>
+        <p style="color:var(--text-sub); margin-bottom:30px;">Please authenticate to continue</p>
+        
+        <button id="loginBtn" class="google-btn">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#fff" d="M17.64 9.2c0-.637-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/></svg>
+            Sign in with Google
+        </button>
+        <p id="auth-error" style="color:var(--danger); margin-top:20px; font-size:0.9rem; font-weight:600;"></p>
     </div>
 
     <div id="view-dashboard" class="hidden">
-        <div class="flex-row" style="border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:20px;">
-            <h1 style="margin:0;">Admin Dashboard</h1>
-            <button class="secondary" id="logoutBtn" style="width:auto; padding:5px 15px; font-size:0.8em;">Logout</button>
+        <div class="header">
+            <h1>Overview</h1>
+            <button class="logout-btn" id="logoutBtn">Logout</button>
         </div>
         
         <div class="tabs">
-            <div id="tab-create" class="tab active" onclick="switchTab('create')">Create Event</div>
-            <div id="tab-history" class="tab" onclick="switchTab('history'); loadHistory()">Event History</div>
+            <div id="tab-create" class="tab active" onclick="switchTab('create')">Create</div>
+            <div id="tab-history" class="tab" onclick="switchTab('history'); loadHistory()">History</div>
         </div>
 
-        <div id="view-create">
-            <input type="text" id="eventName" placeholder="Event Name (e.g., Physics 101)">
-            
-            <label style="display:block; margin-top:10px; color:#666; font-weight:bold;">Event Type:</label>
-            <select id="eventType">
-                <option value="internal">Internal (NITC Email Only)</option>
-                <option value="external">External (Open to All)</option>
-            </select>
+        <div id="view-create" class="view-content">
+            <div style="background:white; padding:20px; border-radius:16px; border:1px solid var(--border);">
+                <label>Event Name</label>
+                <input type="text" id="eventName" placeholder="e.g., Annual Meeting 2024">
+                
+                <label>Access Type</label>
+                <select id="eventType">
+                    <option value="internal">🔒 Internal (NITC Email Only)</option>
+                    <option value="external">🌍 External (Open to Everyone)</option>
+                </select>
 
-            <div id="map"></div>
-            
-            <div class="flex-row">
-                <label>Geofence Radius: <strong id="radiusVal">50</strong> m</label>
-            </div>
-            <input type="range" id="radiusSlider" min="10" max="500" value="50">
-            
-            <button id="createBtn">Create Event & Generate QR</button>
-
-            <div id="qr-result" class="hidden" style="text-align:center; margin-top:20px; background:#f9f9f9; padding:20px; border:2px dashed #ddd; border-radius:10px;">
-                <h3 style="margin-top:0; color:#27ae60;">✅ Event Created!</h3>
-                <img id="qr-image" src="" alt="Generating QR..." style="width: 200px; height: 200px; border: 1px solid #ccc; padding: 5px; background: white;">
-                <p style="margin-bottom:5px; margin-top:15px; font-weight:bold;">Scan or Share:</p>
-                <a id="share-link" href="#" target="_blank" style="word-break: break-all; color:#3498db; text-decoration:underline;">Link</a>
-            </div>
-        </div>
-
-        <div id="view-history" class="hidden">
-            <h3>Past Events</h3>
-            <div id="events-list"><p>Loading...</p></div>
-        </div>
-
-        <div id="view-details" class="hidden">
-            <div class="flex-row">
-                <button class="secondary" style="width: auto;" onclick="switchTab('history')">← Back</button>
-                <div style="display:flex; align-items:center;">
-                    <span style="font-size:0.9em; margin-right:5px;">Accepting Responses:</span>
-                    <label class="switch">
-                        <input type="checkbox" id="toggle-active">
-                        <span class="slider"></span>
-                    </label>
+                <label>Set Location (Drag Marker)</label>
+                <div id="map"></div>
+                
+                <div class="slider-container">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <label style="margin:0;">Geofence Radius</label>
+                        <strong style="color:var(--primary);"><span id="radiusVal">50</span> m</strong>
+                    </div>
+                    <input type="range" id="radiusSlider" min="10" max="500" value="50">
                 </div>
+                
+                <button id="createBtn" class="action-btn">Create Event & Generate QR</button>
             </div>
 
-            <div class="edit-controls">
-                <div class="flex-row">
-                    <h3 style="margin:0;">Event Settings</h3>
-                    <button id="editBtn" style="width:auto; padding:5px 15px; background:#f39c12;">✏️ Edit</button>
-                    <button id="saveBtn" class="hidden" style="width:auto; padding:5px 15px; background:#27ae60;">💾 Save</button>
+            <div id="qr-result" class="hidden">
+                <h3 style="margin-top:0; color:var(--success);">🎉 Event Created!</h3>
+                <img id="qr-image" src="" alt="QR Code">
+                <p style="margin-bottom:10px; font-weight:600; color:var(--text-sub);">Scan to Check-In</p>
+                <a id="share-link" href="#" target="_blank" style="color:var(--primary); text-decoration:none; font-weight:700; word-break:break-all;">Link</a>
+            </div>
+        </div>
+
+        <div id="view-history" class="view-content hidden">
+            <h3 style="margin-top:0;">Past Events</h3>
+            <div id="events-list"><div style="text-align:center; padding:30px; color:var(--text-sub);">Loading...</div></div>
+        </div>
+
+        <div id="view-details" class="view-content hidden">
+            <button class="secondary-btn" onclick="switchTab('history')" style="margin-bottom:20px;">&larr; Back</button>
+
+            <div class="edit-panel">
+                <div class="panel-header">
+                    <h3 style="margin:0;">Settings</h3>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="font-size:0.85rem; color:var(--text-sub);">Status:</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-active">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
                 </div>
 
-                <label>Event Name:</label>
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                    <label>Configuration</label>
+                    <div>
+                        <button id="editBtn" class="edit-btn">Edit</button>
+                        <button id="saveBtn" class="save-btn hidden">Save</button>
+                    </div>
+                </div>
+
                 <input type="text" id="edit-name" disabled class="disabled-input">
-
-                <label>Event Type:</label>
                 <select id="edit-type" disabled class="disabled-input">
                     <option value="internal">Internal (NITC Only)</option>
                     <option value="external">External (Open)</option>
                 </select>
 
-                <label>Geofence Location (Drag pin to update):</label>
-                <div id="details-map"></div> <div class="flex-row" style="margin-top:10px;">
-                    <label>Radius: <strong id="edit-radius-val">50</strong> m</label>
+                <label>Location Update</label>
+                <div id="details-map"></div>
+                
+                <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                    <label>Radius</label>
+                    <strong><span id="edit-radius-val">50</span>m</strong>
                 </div>
                 <input type="range" id="edit-radius" min="10" max="500" value="50" disabled>
             </div>
 
-            <hr>
-
-            <h3>Stats & Data</h3>
-            <p>Total Attendees: <strong id="count-val">0</strong></p>
-            <button onclick="downloadCSV()">Download CSV</button>
-            <ul id="attendee-list"><li>Loading...</li></ul>
+            <div style="background:white; padding:20px; border-radius:16px; border:1px solid var(--border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 style="margin:0;">Attendees (<span id="count-val">0</span>)</h3>
+                    <button class="secondary-btn" onclick="downloadCSV()">Export CSV</button>
+                </div>
+                <ul id="attendee-list"><li>Loading...</li></ul>
+            </div>
             
-            <button class="danger" onclick="deleteCurrentEvent()">Delete Event</button>
+            <button class="danger-btn" onclick="deleteCurrentEvent()">Delete Event Permanently</button>
         </div>
     </div>
 </div>
@@ -130,17 +320,18 @@
     import { db, auth, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, writeBatch, Timestamp, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from './script.js';
 
     const ALLOWED_ADMIN = "maddula_m241070ee@nitc.ac.in";
-    let map, marker, circle; // Main Create Map
-    let detailsMap, detailsMarker, detailsCircle; // Mini Edit Map
+    let map, marker, circle; // Main Map
+    let detailsMap, detailsMarker, detailsCircle; // Edit Map
 
-    // --- AUTH ---
+    // --- AUTHENTICATION ---
     onAuthStateChanged(auth, (user) => {
         if (user && user.email === ALLOWED_ADMIN) {
             document.getElementById('view-login').classList.add('hidden');
             document.getElementById('view-dashboard').classList.remove('hidden');
             setTimeout(initCreateMap, 500);
         } else if (user) {
-            alert("Access Denied"); signOut(auth);
+            document.getElementById('auth-error').innerText = "⛔ Access Denied: Unauthorized Account";
+            signOut(auth);
         } else {
             document.getElementById('view-login').classList.remove('hidden');
             document.getElementById('view-dashboard').classList.add('hidden');
@@ -153,11 +344,12 @@
     // --- CREATE MAP ---
     function initCreateMap() {
         if(map) return;
-        let startLoc = [40.7128, -74.0060]; 
-        map = L.map('map').setView(startLoc, 18);
+        let startLoc = [11.3216, 75.9336]; // Default NITC
+        map = L.map('map').setView(startLoc, 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         marker = L.marker(startLoc, {draggable: true}).addTo(map);
-        circle = L.circle(startLoc, { color: 'red', radius: 50 }).addTo(map);
+        circle = L.circle(startLoc, { color: '#4f46e5', radius: 50 }).addTo(map);
+        
         marker.on('drag', (e) => circle.setLatLng(e.target.getLatLng()));
         
         if(navigator.geolocation) {
@@ -167,18 +359,21 @@
             });
         }
     }
-    
+
     document.getElementById('radiusSlider').addEventListener('input', (e) => {
         document.getElementById('radiusVal').innerText = e.target.value;
         circle.setRadius(e.target.value);
     });
 
-    // --- CREATE LOGIC ---
+    // --- CREATE EVENT ---
     document.getElementById('createBtn').addEventListener('click', async () => {
         const name = document.getElementById('eventName').value;
         const type = document.getElementById('eventType').value;
-        if(!name) return alert("Enter Name");
-        
+        const btn = document.getElementById('createBtn');
+
+        if(!name) return alert("Please enter event name");
+        btn.innerText = "Processing..."; btn.disabled = true;
+
         try {
             const docRef = await addDoc(collection(db, "events"), {
                 name: name, eventType: type,
@@ -193,30 +388,42 @@
             document.getElementById('share-link').href = url;
             document.getElementById('share-link').innerText = url;
             document.getElementById('qr-result').classList.remove('hidden');
-        } catch(e) { alert("Error: " + e.message); }
+            
+            btn.innerText = "Create Another Event"; btn.disabled = false;
+            document.getElementById('eventName').value = "";
+        } catch(e) { alert("Error: " + e.message); btn.disabled = false; }
     });
 
-    // --- HISTORY LIST ---
+    // --- HISTORY ---
     window.loadHistory = async () => {
         const listDiv = document.getElementById('events-list');
-        listDiv.innerHTML = "Loading...";
+        listDiv.innerHTML = '<div style="text-align:center; padding:20px;">Loading data...</div>';
         const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
         const snap = await getDocs(q);
         listDiv.innerHTML = "";
         
+        if(snap.empty) { listDiv.innerHTML = '<div style="text-align:center; padding:20px;">No events found.</div>'; return; }
+
         snap.forEach(docSnap => {
             const data = docSnap.data();
-            const typeBadge = data.eventType === 'internal' ? '🔒 Internal' : '🌍 External';
+            const badgeType = data.eventType === 'internal' ? '<span class="badge badge-int">INT</span>' : '<span class="badge badge-ext">EXT</span>';
+            const badgeStatus = data.isActive ? '<span class="badge badge-live">LIVE</span>' : '<span class="badge badge-closed">CLOSED</span>';
+            
             const div = document.createElement('div');
             div.className = 'event-card';
-            div.innerHTML = `<div><b>${data.name}</b> <small>${typeBadge}</small></div>
-                             <div class="status-badge ${data.isActive?'status-active':'status-closed'}">${data.isActive?'Live':'Closed'}</div>`;
+            div.innerHTML = `
+                <div>
+                    <div style="font-weight:600; font-size:1rem;">${data.name} ${badgeType}</div>
+                    <div style="font-size:0.8rem; color:var(--text-sub); margin-top:4px;">${data.createdAt.toDate().toLocaleDateString()}</div>
+                </div>
+                <div>${badgeStatus}</div>
+            `;
             div.onclick = () => openDetails(docSnap.id, data);
             listDiv.appendChild(div);
         });
     };
 
-    // --- DETAILS & EDIT LOGIC ---
+    // --- DETAILS & EDIT ---
     let currentEventId = null;
     let currentAttendees = [];
 
@@ -224,85 +431,68 @@
         currentEventId = id;
         switchTab('details');
         
-        // 1. Fill Data
-        const nameInput = document.getElementById('edit-name');
-        const typeInput = document.getElementById('edit-type');
-        const radInput = document.getElementById('edit-radius');
-        
-        nameInput.value = data.name;
-        typeInput.value = data.eventType;
-        radInput.value = data.radius;
+        // Fill Form
+        document.getElementById('edit-name').value = data.name;
+        document.getElementById('edit-type').value = data.eventType;
+        document.getElementById('edit-radius').value = data.radius;
         document.getElementById('edit-radius-val').innerText = data.radius;
 
-        // 2. Setup Toggle
+        // Toggle Switch
         const toggle = document.getElementById('toggle-active');
         const newToggle = toggle.cloneNode(true); toggle.parentNode.replaceChild(newToggle, toggle);
         newToggle.checked = data.isActive;
         newToggle.addEventListener('change', async (e) => updateDoc(doc(db, "events", id), { isActive: e.target.checked }));
 
-        // 3. Setup Mini Map (The Screen Grab)
-        if(detailsMap) detailsMap.remove(); // Clear old map instance
+        // Init Mini Map
+        if(detailsMap) detailsMap.remove();
         detailsMap = L.map('details-map').setView([data.latitude, data.longitude], 18);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(detailsMap);
         
         detailsMarker = L.marker([data.latitude, data.longitude], {draggable: false}).addTo(detailsMap);
-        detailsCircle = L.circle([data.latitude, data.longitude], { color: 'blue', radius: data.radius }).addTo(detailsMap);
-
-        // Sync Marker & Circle in Edit Map
+        detailsCircle = L.circle([data.latitude, data.longitude], { color: '#4f46e5', radius: data.radius }).addTo(detailsMap);
+        
         detailsMarker.on('drag', (e) => detailsCircle.setLatLng(e.target.getLatLng()));
 
-        // 4. Disable Editing Initially
         disableEditing(true);
-
-        // 5. Load Attendees
         loadAttendees(id);
     }
 
-    // --- EDIT BUTTONS ---
+    // --- EDIT CONTROLS ---
     const editBtn = document.getElementById('editBtn');
     const saveBtn = document.getElementById('saveBtn');
-    
+
     editBtn.onclick = () => {
-        disableEditing(false); // Enable inputs
+        disableEditing(false);
         editBtn.classList.add('hidden');
         saveBtn.classList.remove('hidden');
-        detailsMarker.dragging.enable(); // Allow moving pin
+        detailsMarker.dragging.enable();
     };
 
     saveBtn.onclick = async () => {
         saveBtn.innerText = "Saving...";
         try {
-            const newLat = detailsMarker.getLatLng().lat;
-            const newLng = detailsMarker.getLatLng().lng;
-            const newRad = parseInt(document.getElementById('edit-radius').value);
-            const newName = document.getElementById('edit-name').value;
-            const newType = document.getElementById('edit-type').value;
-
             await updateDoc(doc(db, "events", currentEventId), {
-                name: newName,
-                eventType: newType,
-                latitude: newLat,
-                longitude: newLng,
-                radius: newRad
+                name: document.getElementById('edit-name').value,
+                eventType: document.getElementById('edit-type').value,
+                latitude: detailsMarker.getLatLng().lat,
+                longitude: detailsMarker.getLatLng().lng,
+                radius: parseInt(document.getElementById('edit-radius').value)
             });
-
-            alert("Event Updated!");
+            alert("Changes Saved!");
             disableEditing(true);
             editBtn.classList.remove('hidden');
             saveBtn.classList.add('hidden');
-            saveBtn.innerText = "💾 Save";
+            saveBtn.innerText = "Save";
             detailsMarker.dragging.disable();
-            
-        } catch(e) { alert("Error saving"); }
+        } catch(e) { alert("Error saving."); }
     };
 
     function disableEditing(disable) {
-        const inputs = ['edit-name', 'edit-type', 'edit-radius'];
-        inputs.forEach(id => {
+        const ids = ['edit-name', 'edit-type', 'edit-radius'];
+        ids.forEach(id => {
             const el = document.getElementById(id);
             el.disabled = disable;
-            if(disable) el.classList.add('disabled-input');
-            else el.classList.remove('disabled-input');
+            disable ? el.classList.add('disabled-input') : el.classList.remove('disabled-input');
         });
     }
 
@@ -313,20 +503,24 @@
 
     async function loadAttendees(id) {
         const list = document.getElementById('attendee-list');
-        list.innerHTML = "Loading...";
+        list.innerHTML = '<li style="justify-content:center; color:#999;">Loading...</li>';
         const q = query(collection(db, "attendees"), where("eventId", "==", id));
         const snap = await getDocs(q);
+        
         list.innerHTML = ""; currentAttendees = [];
         document.getElementById('count-val').innerText = snap.size;
         
+        if(snap.empty) { list.innerHTML = '<li style="justify-content:center;">No attendees yet.</li>'; return; }
+
         snap.forEach(d => {
             const att = d.data(); currentAttendees.push(att);
             const li = document.createElement('li');
-            li.innerText = `${att.name} (${att.studentId || 'Ext'}) - ${att.timestamp.toDate().toLocaleTimeString()}`;
+            li.innerHTML = `<span><strong>${att.name}</strong> <small>(${att.studentId})</small></span> <span>${att.timestamp.toDate().toLocaleTimeString()}</span>`;
             list.appendChild(li);
         });
     }
 
+    // --- UTILS ---
     window.switchTab = (tabName) => {
         ['create', 'history', 'details'].forEach(t => document.getElementById(`view-${t}`).classList.add('hidden'));
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -334,28 +528,25 @@
         if(tabName === 'create') setTimeout(() => map.invalidateSize(), 200);
         if(tabName === 'details' && detailsMap) setTimeout(() => detailsMap.invalidateSize(), 200);
     }
-    
-    // ... (Keep existing downloadCSV and deleteCurrentEvent functions) ...
+
     window.downloadCSV = () => {
         if(!currentAttendees.length) return alert("No data.");
         let csv = "Name,Email,ID,Time\n";
         currentAttendees.forEach(row => csv += `"${row.name}",${row.email},${row.studentId},"${row.timestamp.toDate().toLocaleString()}"\n`);
         const a = document.createElement('a');
         a.href = window.URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-        a.download = `attendance.csv`;
+        a.download = `attendance_${currentEventId}.csv`;
         a.click();
     };
 
     window.deleteCurrentEvent = async () => {
-        if(!currentEventId || !confirm("Delete event?")) return;
+        if(!confirm("Are you sure? This cannot be undone.")) return;
         const batch = writeBatch(db);
         batch.delete(doc(db, "events", currentEventId));
         const snaps = await getDocs(query(collection(db, "attendees"), where("eventId", "==", currentEventId)));
         snaps.forEach(s => batch.delete(s.ref));
         await batch.commit();
-        alert("Deleted.");
-        switchTab('history');
-        loadHistory();
+        alert("Deleted."); switchTab('history'); loadHistory();
     };
 </script>
 </body>
