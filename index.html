@@ -2,135 +2,296 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Event Attendance</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NITC Attendance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #2563eb; --bg: #f3f4f6; --text-main: #1f2937; --error: #ef4444; }
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --success: #10b981;
+            --error: #ef4444;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; }
-        .container { width: 100%; max-width: 600px; margin: 0 auto; min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0;
+            background-color: var(--bg);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden; /* Prevent scrolling on body */
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- DESKTOP BLOCKER --- */
+        #desktop-warning {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; text-align: center; padding: 20px;
+        }
+        .phone-icon { font-size: 4rem; margin-bottom: 20px; animation: float 3s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        /* --- MAIN CONTAINER --- */
+        .container {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+        }
+
         .hidden { display: none !important; }
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Login */
-        .login-wrapper { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; padding: 20px; background: white; text-align: center; }
-        .google-btn { background: #4285F4; color: white; border: none; padding: 15px 24px; border-radius: 12px; font-weight: 600; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-top: 10px; }
+        /* --- LOGIN SCREEN --- */
+        .login-wrapper {
+            flex: 1; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            background: white; padding: 30px; text-align: center;
+        }
+        .app-logo {
+            width: 80px; height: 80px; background: var(--primary);
+            border-radius: 24px; display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; color: white; margin-bottom: 20px;
+            box-shadow: 0 20px 25px -5px rgba(79, 70, 229, 0.4);
+        }
         
-        /* Header */
-        .user-header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #eee; }
-        .user-name-small { font-weight: 700; font-size: 0.95rem; }
-        .user-email-small { font-size: 0.75rem; color: #6b7280; }
-        .logout-btn { background: #fee2e2; color: #b91c1c; padding: 6px 12px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; }
+        .google-btn {
+            background: white; color: var(--text-main);
+            border: 1px solid #e2e8f0; padding: 16px;
+            border-radius: 16px; width: 100%; font-weight: 600; font-size: 1rem;
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            cursor: pointer; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: transform 0.1s, box-shadow 0.1s;
+            margin-top: 30px;
+        }
+        .google-btn:active { transform: scale(0.98); background: #f8fafc; }
+
+        /* --- HEADER --- */
+        .user-header {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 15px 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 50;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        .avatar-circle {
+            width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1, #a855f7);
+            border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1.2rem;
+        }
+        .logout-icon {
+            background: #f1f5f9; width: 36px; height: 36px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; border: none;
+        }
+
+        /* --- CONTENT --- */
+        .content { padding: 24px; flex: 1; }
         
-        /* Content */
-        .content-area { padding: 20px; flex: 1; }
-        .event-card { background: white; padding: 16px; border-radius: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
-        .status-active { background: #d1fae5; color: #065f46; }
+        h1 { font-size: 1.5rem; font-weight: 800; margin: 0 0 5px 0; color: var(--text-main); }
+        .subtitle { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 25px; }
+
+        /* --- EVENT CARDS --- */
+        .event-card {
+            background: white; padding: 20px; border-radius: 20px;
+            margin-bottom: 16px; box-shadow: var(--shadow);
+            display: flex; justify-content: space-between; align-items: center;
+            transition: transform 0.1s; border: 1px solid white;
+        }
+        .event-card:active { transform: scale(0.97); }
+        
+        .card-left h3 { margin: 0; font-size: 1.1rem; }
+        .card-left span { 
+            font-size: 0.75rem; background: #f1f5f9; color: var(--text-sub);
+            padding: 4px 8px; border-radius: 6px; display: inline-block; margin-top: 6px; 
+        }
+
+        .status-badge {
+            padding: 6px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .status-live { background: #dcfce7; color: #166534; }
         .status-done { background: #e0f2fe; color: #075985; }
 
-        /* Attendance */
-        .status-box { padding: 20px; border-radius: 16px; text-align: center; background: white; margin-bottom: 20px; font-weight: 600; }
-        .status-success { background: #d1fae5; color: #065f46; }
-        .status-error { background: #fee2e2; color: #b91c1c; }
-        .pulse { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        /* --- ATTENDANCE SCREEN --- */
+        .status-box {
+            padding: 30px 20px; border-radius: 24px; text-align: center;
+            background: white; margin-bottom: 25px; box-shadow: var(--shadow);
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+        }
+        .status-icon { font-size: 3rem; }
         
-        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
-        .primary-btn { background: var(--primary); color: white; width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 20px; }
-        .primary-btn:disabled { background: #cbd5e1; }
+        .pulse-ring {
+            width: 60px; height: 60px; border-radius: 50%;
+            background: var(--primary); opacity: 0.2;
+            animation: pulse-animation 2s infinite;
+        }
+        @keyframes pulse-animation { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(2); opacity: 0; } }
+
+        .info-card {
+            background: white; border-radius: 20px; padding: 20px;
+            box-shadow: var(--shadow); margin-bottom: 20px;
+        }
+        .info-row {
+            display: flex; justify-content: space-between; padding: 12px 0;
+            border-bottom: 1px solid #f1f5f9; font-size: 0.95rem;
+        }
+        .info-row:last-child { border-bottom: none; }
+        
+        .primary-btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white; width: 100%; padding: 18px; border-radius: 16px;
+            font-weight: 700; font-size: 1rem; border: none;
+            box-shadow: 0 10px 20px -10px var(--primary);
+            cursor: pointer; transition: transform 0.1s;
+        }
+        .primary-btn:active { transform: scale(0.95); }
+        .primary-btn:disabled { background: #cbd5e1; box-shadow: none; }
+
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            color: var(--text-sub); font-weight: 600; margin-bottom: 20px;
+            cursor: pointer; font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="view-login" class="login-wrapper hidden fade-in">
-        <div style="font-size:3rem; margin-bottom:20px;">📍</div>
-        <div style="font-size:1.5rem; font-weight:700;">Event Attendance</div>
-        
-        <p style="color:#666; margin-bottom:10px;">Sign in to mark attendance</p>
-        
-        <p style="color:#666; margin-bottom:30px; font-size: 0.9em; max-width: 80%;">
-            <strong>NITC Students:</strong> Use College Email<br>
-            <strong>Guests:</strong> Use Any Valid Email
+    <div id="desktop-warning">
+        <div class="phone-icon">📱</div>
+        <h2>Mobile App Only</h2>
+        <p style="opacity: 0.8; max-width: 300px; line-height: 1.5;">
+            This attendance system is restricted to mobile devices. Please open the link on your phone.
         </p>
-        
-        <button id="googleBtn" class="google-btn">Sign in with Google</button>
-        <p id="login-error" style="color:var(--error); margin-top:20px; font-size:0.85rem;"></p>
     </div>
 
-    <div id="view-app" class="hidden fade-in">
-        <div class="user-header">
-            <div>
-                <div class="user-name-small" id="header-name">User</div>
-                <div class="user-email-small" id="header-email">...</div>
+    <div id="app-container" class="container hidden">
+        
+        <div id="view-login" class="login-wrapper hidden fade-in">
+            <div class="app-logo">📍</div>
+            <h2 style="margin:0; font-size:1.8rem;">Attendance</h2>
+            <p style="color:var(--text-sub);">Secure Geofencing System</p>
+            
+            <button id="googleBtn" class="google-btn">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
+                Continue with Google
+            </button>
+
+            <div style="margin-top: 30px; font-size: 0.85rem; color: var(--text-sub); line-height: 1.6;">
+                <strong>NITC Students:</strong> Use College Email<br>
+                <strong>Guests:</strong> Use Any Valid Email
             </div>
-            <button class="logout-btn" id="logoutBtn">Logout</button>
+            <p id="login-error" style="color:var(--error); font-size:0.8rem; margin-top:20px;"></p>
         </div>
 
-        <div class="content-area">
-            <div id="view-list">
-                <h1>Live Events</h1>
-                <p style="color:#666; font-size:0.9rem;">Tap an event to mark attendance</p>
-                <div id="live-events-list"><div style="text-align:center; padding:40px; color:#999;">Loading...</div></div>
+        <div id="view-app" class="hidden fade-in">
+            <div class="user-header">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div class="avatar-circle" id="user-avatar">?</div>
+                    <div style="display:flex; flex-direction:column;">
+                        <span class="user-name-small" id="header-name">Loading...</span>
+                        <span class="user-email-small" id="header-email">...</span>
+                    </div>
+                </div>
+                <button class="logout-icon" id="logoutBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
             </div>
 
-            <div id="view-attendance" class="hidden">
-                <div id="backBtn" style="margin-bottom:20px; color:#666; cursor:pointer;">&larr; Back to Events</div>
-                <h2 id="event-title">Verifying...</h2>
-                <div id="status-box" class="status-box pulse">Initializing...</div>
-
-                <div id="form-container" class="hidden fade-in">
-                    <div style="background:white; border-radius:16px; padding:0 16px; margin-bottom:10px;">
-                        <div class="info-row"><span>Name</span><span style="font-weight:600;" id="display-name">...</span></div>
-                        <div class="info-row"><span>Roll No</span><span style="font-weight:600;" id="display-roll">...</span></div>
+            <div class="content">
+                <div id="view-list">
+                    <h1>Live Events</h1>
+                    <p class="subtitle">Select an event to check-in</p>
+                    <div id="events-container">
+                        <div style="text-align:center; padding:40px; color:#cbd5e1;">Loading events...</div>
                     </div>
-                    <button id="submitBtn" class="primary-btn">Confirm Attendance</button>
+                </div>
+
+                <div id="view-attendance" class="hidden">
+                    <div class="back-btn" id="backBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                        Back to Events
+                    </div>
+                    
+                    <h2 id="event-title" style="margin-bottom: 20px;">Verifying...</h2>
+                    
+                    <div id="status-box" class="status-box">
+                        <div class="pulse-ring"></div>
+                        <span style="color:var(--primary); font-weight:600;">Acquiring GPS...</span>
+                    </div>
+
+                    <div id="form-container" class="hidden fade-in">
+                        <div class="info-card">
+                            <div class="info-row"><span style="color:var(--text-sub);">Name</span><span style="font-weight:700;" id="disp-name">...</span></div>
+                            <div class="info-row"><span style="color:var(--text-sub);">Roll No</span><span style="font-weight:700;" id="disp-roll">...</span></div>
+                        </div>
+                        <button id="submitBtn" class="primary-btn">Confirm Check-In</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
 <script type="module">
     import { db, auth, collection, getDocs, query, where, addDoc, doc, getDoc, Timestamp, getDistanceFromLatLonInMeters, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from './script.js';
 
+    // --- 1. DEVICE CHECK (MOBILE ONLY) ---
+    function checkDevice() {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            document.getElementById('desktop-warning').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+        } else {
+            // Keep desktop warning visible
+            console.log("Desktop detected. Blocking access.");
+        }
+    }
+    checkDevice(); // Run immediately
+
+    // --- 2. APP LOGIC ---
     const views = { login: document.getElementById('view-login'), app: document.getElementById('view-app'), list: document.getElementById('view-list'), attendance: document.getElementById('view-attendance') };
     let currentUser = null;
     let currentRollNo = "N/A";
 
-    // --- AUTH OBSERVER ---
     onAuthStateChanged(auth, (user) => {
         if (user) {
             currentUser = user;
             
-            // Logic: If NITC email, try extract roll number. Else mark as External.
+            // NITC Logic
             if (user.email.endsWith('@nitc.ac.in')) {
                 try {
                     const parts = user.email.split('@')[0];
-                    const uIdx = parts.indexOf('_');
-                    if (uIdx !== -1) currentRollNo = parts.substring(uIdx + 1).toUpperCase();
-                } catch (e) { currentRollNo = "Error"; }
+                    const idx = parts.indexOf('_');
+                    if(idx !== -1) currentRollNo = parts.substring(idx + 1).toUpperCase();
+                } catch(e) { currentRollNo = "Error"; }
             } else {
-                currentRollNo = "External";
+                currentRollNo = "Guest";
             }
 
-            // Update Header UI
-            document.getElementById('header-name').innerText = user.displayName;
-            document.getElementById('header-email').innerText = currentRollNo !== "External" ? currentRollNo : "Guest User";
-            
-            // Update Form UI
-            document.getElementById('display-name').innerText = user.displayName;
-            document.getElementById('display-roll').innerText = currentRollNo;
+            // Update UI
+            document.getElementById('user-avatar').innerText = user.displayName.charAt(0);
+            document.getElementById('header-name').innerText = user.displayName.split(' ')[0];
+            document.getElementById('header-email').innerText = currentRollNo;
+            document.getElementById('disp-name').innerText = user.displayName;
+            document.getElementById('disp-roll').innerText = currentRollNo;
 
             showApp();
-            
-            // Handle Deep Link (QR Scan)
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('id')) startAttendanceFlow(urlParams.get('id'));
-            else loadLiveEvents();
+
+            const params = new URLSearchParams(window.location.search);
+            if(params.get('id')) startAttendanceFlow(params.get('id'));
+            else loadEvents();
         } else {
             showLogin();
         }
@@ -140,105 +301,112 @@
     document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth).then(() => window.location.href = window.location.pathname));
     document.getElementById('backBtn').addEventListener('click', () => {
         window.history.pushState({}, '', window.location.pathname);
-        views.attendance.classList.add('hidden'); views.list.classList.remove('hidden'); loadLiveEvents();
+        views.attendance.classList.add('hidden'); views.list.classList.remove('hidden'); loadEvents();
     });
 
     function showLogin() { views.login.classList.remove('hidden'); views.app.classList.add('hidden'); }
     function showApp() { views.login.classList.add('hidden'); views.app.classList.remove('hidden'); views.list.classList.remove('hidden'); views.attendance.classList.add('hidden'); }
 
-    // --- DATA FUNCTIONS ---
     async function hasAttended(eventId) {
         const q = query(collection(db, "attendees"), where("eventId", "==", eventId), where("email", "==", currentUser.email));
         return !(await getDocs(q)).empty;
     }
 
-    async function loadLiveEvents() {
-        const listDiv = document.getElementById('live-events-list');
+    async function loadEvents() {
+        const container = document.getElementById('events-container');
         try {
             const q = query(collection(db, "events"), where("isActive", "==", true));
-            const snapshot = await getDocs(q);
-            listDiv.innerHTML = "";
-            if(snapshot.empty) { listDiv.innerHTML = '<div style="text-align:center; padding:40px; color:#999;">No live events.</div>'; return; }
+            const snap = await getDocs(q);
+            container.innerHTML = "";
+            if(snap.empty) { container.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:40px;">No live events found.</div>'; return; }
 
-            for (const docSnap of snapshot.docs) {
+            for(const docSnap of snap.docs) {
                 const data = docSnap.data();
                 const attended = await hasAttended(docSnap.id);
                 
-                let badgeClass = 'status-active'; let badgeText = 'Live';
-                if (attended) { badgeClass = 'status-done'; badgeText = 'Done'; }
-                
-                // Show Type (Internal/External)
-                const typeLabel = data.eventType === 'internal' ? '🔒 Internal' : '🌍 External';
+                let badgeClass = 'status-live'; let badgeText = 'Active';
+                if(attended) { badgeClass = 'status-done'; badgeText = 'Done'; }
+
+                const typeLabel = data.eventType === 'internal' ? 'Locked (Internal)' : 'Public (External)';
 
                 const div = document.createElement('div');
                 div.className = 'event-card';
-                div.innerHTML = `<div>
-                                    <div style="font-weight:600;">${data.name}</div>
-                                    <div style="font-size:0.75rem; color:#666;">${typeLabel}</div>
-                                 </div>
-                                 <div class="status-badge ${badgeClass}">${badgeText}</div>`;
+                div.innerHTML = `
+                    <div class="card-left">
+                        <h3>${data.name}</h3>
+                        <span>${typeLabel}</span>
+                    </div>
+                    <div class="status-badge ${badgeClass}">${badgeText}</div>
+                `;
                 div.onclick = () => startAttendanceFlow(docSnap.id);
-                listDiv.appendChild(div);
+                container.appendChild(div);
             }
-        } catch (e) { console.error(e); }
+        } catch(e) { console.error(e); container.innerHTML = "Error loading events."; }
     }
 
     async function startAttendanceFlow(eventId) {
         views.list.classList.add('hidden'); views.attendance.classList.remove('hidden');
         const statusBox = document.getElementById('status-box');
-        const formContainer = document.getElementById('form-container');
-        statusBox.innerText = "Verifying..."; statusBox.className = "status-box pulse";
-        formContainer.classList.add('hidden');
+        const form = document.getElementById('form-container');
+        
+        // Reset State
+        statusBox.innerHTML = '<div class="pulse-ring"></div><span style="color:var(--primary); font-weight:600;">Verifying...</span>';
+        statusBox.style.background = "white"; statusBox.style.color = "inherit";
+        form.classList.add('hidden');
 
         try {
             const eventSnap = await getDoc(doc(db, "events", eventId));
-            if (!eventSnap.exists() || !eventSnap.data().isActive) {
-                statusBox.className = "status-box status-error"; statusBox.innerText = "Event Closed."; return;
+            if(!eventSnap.exists() || !eventSnap.data().isActive) {
+                showStatus("Event is closed or invalid.", "error"); return;
             }
             const data = eventSnap.data();
             document.getElementById('event-title').innerText = data.name;
 
-            // --- PERMISSION CHECK ---
-            if (data.eventType === 'internal') {
-                if (!currentUser.email.endsWith('@nitc.ac.in')) {
-                    statusBox.className = "status-box status-error";
-                    statusBox.innerHTML = "⛔ <b>Access Denied</b><br><small>This event is restricted to NITC students.</small>";
-                    return;
-                }
+            // Permission Check
+            if(data.eventType === 'internal' && !currentUser.email.endsWith('@nitc.ac.in')) {
+                showStatus("⛔ Access Denied<br><small>NITC Students Only</small>", "error"); return;
             }
 
-            if (await hasAttended(eventId)) {
-                statusBox.className = "status-box status-success"; statusBox.innerText = "Already Attended ✅"; return;
+            if(await hasAttended(eventId)) {
+                showStatus("✅ Already Checked In", "success"); return;
             }
 
-            if(!navigator.geolocation) { statusBox.className = "status-box status-error"; statusBox.innerText = "GPS Disabled."; return; }
+            if(!navigator.geolocation) { showStatus("GPS Disabled", "error"); return; }
+            
             navigator.geolocation.getCurrentPosition(pos => {
                 const dist = getDistanceFromLatLonInMeters(pos.coords.latitude, pos.coords.longitude, data.latitude, data.longitude);
                 
-                if (dist <= data.radius) {
-                    statusBox.className = "status-box status-success"; statusBox.innerText = "Location Verified ✅";
-                    formContainer.classList.remove('hidden');
+                if(dist <= data.radius) {
+                    showStatus("✅ Location Verified", "success");
+                    form.classList.remove('hidden');
 
                     const btn = document.getElementById('submitBtn');
                     const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
                     
                     newBtn.addEventListener('click', async () => {
-                        newBtn.innerText = "Submitting..."; newBtn.disabled = true;
+                        newBtn.innerText = "Processing..."; newBtn.disabled = true;
                         try {
                             await addDoc(collection(db, "attendees"), {
                                 eventId: eventId, name: currentUser.displayName, email: currentUser.email,
-                                studentId: String(currentRollNo).toUpperCase(), timestamp: Timestamp.now()
+                                studentId: currentRollNo, timestamp: Timestamp.now()
                             });
-                            statusBox.innerText = "Attendance Marked!"; formContainer.classList.add('hidden');
+                            showStatus("🎉 Check-in Successful!", "success"); form.classList.add('hidden');
                             setTimeout(() => document.getElementById('backBtn').click(), 1500);
                         } catch(e) { alert("Error"); newBtn.disabled = false; }
                     });
                 } else {
-                    statusBox.className = "status-box status-error"; statusBox.innerHTML = `Too far (${Math.round(dist)}m).<br>Get closer to venue.`;
+                    showStatus(`📍 Too far (${Math.round(dist)}m)<br><small>Move closer to venue</small>`, "error");
                 }
-            }, () => { statusBox.className = "status-box status-error"; statusBox.innerText = "Location Denied."; }, {enableHighAccuracy:true});
+            }, () => showStatus("Location Access Denied", "error"), {enableHighAccuracy:true});
 
-        } catch (e) { statusBox.innerText = "Error loading event."; }
+        } catch(e) { showStatus("System Error", "error"); }
+    }
+
+    function showStatus(msg, type) {
+        const box = document.getElementById('status-box');
+        box.innerHTML = msg;
+        if(type === 'error') { box.style.background = '#fef2f2'; box.style.color = '#dc2626'; }
+        if(type === 'success') { box.style.background = '#f0fdf4'; box.style.color = '#16a34a'; }
     }
 </script>
 </body>
